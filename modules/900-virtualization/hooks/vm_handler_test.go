@@ -64,10 +64,11 @@ spec:
   userName: admin
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
-    image:
+    source:
+      kind: ClusterVirtualMachineImage
       name: ubuntu-20.04
-      size: 10Gi
-      type: linstor-slow
+    size: 10Gi
+    storageClassName: linstor-slow
   cloudInit:
     userData: |-
       chpasswd: { expire: False }
@@ -81,9 +82,9 @@ metadata:
   namespace: ns1
 spec:
   source:
+    kind: ClusterVirtualMachineImage
     name: centos-7
-    scope: public
-  type: linstor-slow
+  storageClassName: linstor-slow
   size: 10Gi
 `),
 			)

@@ -27,8 +27,8 @@ import (
 
 // VirtualMachineDiskSpec defines the desired state of VirtualMachineDisk
 type VirtualMachineDiskSpec struct {
-	StorageClassName *string                           `json:"storageClassName,omitempty"`
-	Size             *resource.Quantity                `json:"size,omitempty"`
+	StorageClassName string                            `json:"storageClassName,omitempty"`
+	Size             resource.Quantity                 `json:"size,omitempty"`
 	Source           *corev1.TypedLocalObjectReference `json:"source,omitempty"`
 }
 

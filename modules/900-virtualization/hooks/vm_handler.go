@@ -186,59 +186,43 @@ VM_LOOP:
 		// KubeVirt VirtualMachine not found, needs to create a new one
 
 		var bootVirtualMachineDiskName string
-		if d8vm.Spec.BootDisk.Disk != (v1alpha1.DiskSource{}) {
-			bootVirtualMachineDiskName = d8vm.Spec.BootDisk.Disk.Name
-		}
-
-		if d8vm.Spec.BootDisk.Image != (v1alpha1.ImageSource{}) {
-			if bootVirtualMachineDiskName != "" {
-				input.LogEntry.Errorln("VirtualMachineDisk source can't be specified with image source for bootVirtualMachineDisk")
-				continue
+		switch d8vm.Spec.BootDisk.Source.Kind {
+		case "VirtualMachineDisk":
+			bootVirtualMachineDiskName = d8vm.Spec.BootDisk.Source.Name
+			if disk := getDisk(&diskNameSnap, d8vm.Namespace, d8vm.Spec.BootDisk.Source.Name); disk == nil {
+				input.LogEntry.Warnln("Disk not found")
 			}
+		case "ClusterVirtualMachineImage":
 			bootVirtualMachineDiskName = d8vm.Name + "-boot"
-			if bootVirtualMachineDiskName != "" {
-				bootVirtualMachineDiskFound := false
-				for _, dRaw := range diskNameSnap {
-					disk := dRaw.(*VirtualMachineDiskSnapshot)
-					if disk.Namespace != d8vm.Namespace {
-						continue
-					}
-					if disk.Name != bootVirtualMachineDiskName {
-						continue
-					}
-					bootVirtualMachineDiskFound = true
+			if disk := getDisk(&diskNameSnap, d8vm.Namespace, bootVirtualMachineDiskName); disk == nil {
+				// Create a new VirtualMachineDisk
+				disk := &v1alpha1.VirtualMachineDisk{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "VirtualMachineDisk",
+						APIVersion: gv,
+					},
+					ObjectMeta: v1.ObjectMeta{
+						Name:      bootVirtualMachineDiskName,
+						Namespace: d8vm.Namespace,
+						OwnerReferences: []v1.OwnerReference{{
+							APIVersion:         gv,
+							BlockOwnerDeletion: pointer.Bool(true),
+							Controller:         pointer.Bool(true),
+							Kind:               "VirtualMachine",
+							Name:               d8vm.Name,
+							UID:                d8vm.UID,
+						}},
+					},
+					Spec: v1alpha1.VirtualMachineDiskSpec{
+						StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
+						Size:             d8vm.Spec.BootDisk.Size,
+						Source:           d8vm.Spec.BootDisk.Source,
+					},
 				}
-				if !bootVirtualMachineDiskFound {
-					// Create a new VirtualMachineDisk
-					disk := &v1alpha1.VirtualMachineDisk{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "VirtualMachineDisk",
-							APIVersion: gv,
-						},
-						ObjectMeta: v1.ObjectMeta{
-							Name:      bootVirtualMachineDiskName,
-							Namespace: d8vm.Namespace,
-							OwnerReferences: []v1.OwnerReference{{
-								APIVersion:         gv,
-								BlockOwnerDeletion: pointer.Bool(true),
-								Controller:         pointer.Bool(true),
-								Kind:               "VirtualMachine",
-								Name:               d8vm.Name,
-								UID:                d8vm.UID,
-							}},
-						},
-						Spec: v1alpha1.VirtualMachineDiskSpec{
-							Type: d8vm.Spec.BootDisk.Image.Type,
-							Size: d8vm.Spec.BootDisk.Image.Size,
-							Source: v1alpha1.ImageSourceRef{
-								Name:  d8vm.Spec.BootDisk.Image.Name,
-								Scope: v1alpha1.ImageSourceScopePublic,
-							},
-						},
-					}
-					input.PatchCollector.Create(disk)
-				}
+				input.PatchCollector.Create(disk)
 			}
+		default:
+			input.LogEntry.Warnln("Unknown source kind")
 		}
 
 		kvvm := &virtv1.VirtualMachine{}
@@ -334,7 +318,7 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 					Name: "boot",
 					VolumeSource: virtv1.VolumeSource{
 						DataVolume: &virtv1.DataVolumeSource{
-							Name:         vm.Name + "-boot",
+							Name:         "disk-" + vm.Name + "-boot", // TODO kind Disk?
 							Hotpluggable: false,
 						},
 					},
@@ -353,8 +337,8 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 	}
 
 	// attach extra disks
-	if d8vm.Spec.Disks != nil {
-		for i, disk := range *d8vm.Spec.Disks {
+	if d8vm.Spec.DiskAttachments != nil {
+		for i, disk := range *d8vm.Spec.DiskAttachments {
 			diskName := "disk-" + strconv.Itoa(i+1)
 			vm.Spec.Template.Spec.Domain.Devices.Disks = append(vm.Spec.Template.Spec.Domain.Devices.Disks, virtv1.Disk{
 				Name: diskName,
@@ -368,7 +352,7 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 				Name: diskName,
 				VolumeSource: virtv1.VolumeSource{
 					DataVolume: &virtv1.DataVolumeSource{
-						Name:         disk.Name,
+						Name:         "disk-" + disk.Name,
 						Hotpluggable: disk.Hotpluggable,
 					},
 				},

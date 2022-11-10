@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,7 @@ type VirtualMachineSpec struct {
 	SSHPublicKey    string                         `json:"sshPublicKey,omitempty"`
 	BootDisk        BootDisk                       `json:"bootDisk,omitempty"`
 	CloudInit       *virtv1.CloudInitNoCloudSource `json:"cloudInit,omitempty"`
-	Disks           *[]DiskSource                  `json:"disks,omitempty"`
+	DiskAttachments *[]DiskSource                  `json:"diskAttachments,omitempty"`
 }
 
 // VirtualMachineStatus defines the observed state of VirtualMachine
@@ -48,27 +49,16 @@ type VirtualMachineStatus struct {
 // Represents the source of a boot disk
 // Only one of its members may be specified.
 type BootDisk struct {
-	// Represents the source of image used to create disk
-	// +optional
-	Image ImageSource `json:"image,omitempty"`
-	// Represents the source of existing disk
-	// +optional
-	Disk DiskSource `json:"disk,omitempty"`
-}
-
-// Represents the source of image used to create disk
-type ImageSource struct {
+	Source *corev1.TypedLocalObjectReference `json:"source"`
 	// Type represents the type for newly created disk
-	Type string `json:"type,omitempty"`
+	StorageClassName string `json:"storageClassName,omitempty"`
 	// Type represents the size for newly created disk
 	Size resource.Quantity `json:"size"`
-	// Name represents the name of the Image
-	Name string `json:"name"`
-	// Scope represents the source of Image
-	// supported values: global, private
-	Scope ImageSourceScope `json:"scope,omitempty"`
-	// Type represents the type for newly created disk
+	// Should boot disk be removed with VM
 	Ephemeral bool `json:"ephemeral,omitempty"`
+	// Hotpluggable indicates whether the volume can be hotplugged and hotunplugged.
+	// +optional
+	Hotpluggable bool `json:"hotpluggable,omitempty"`
 	// Bus indicates the type of disk device to emulate.
 	// supported values: virtio, sata, scsi, usb.
 	Bus string `json:"bus,omitempty"`
