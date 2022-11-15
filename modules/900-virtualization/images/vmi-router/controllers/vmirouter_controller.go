@@ -44,6 +44,11 @@ var (
 	log = ctrl.Log.WithName("vmi-router")
 )
 
+const (
+	VMIRoutesBucket  = "vmi_routes"
+	CIDRRoutesBucket = "cidr_routes"
+)
+
 type VMIRouterController struct {
 	RESTClient     rest.Interface
 	NodeName       string
@@ -78,6 +83,15 @@ func (a *CachedRoute) EqualWithoutUUID(b *CachedRoute) bool {
 }
 
 func (c VMIRouterController) Start(ctx context.Context) error {
+	//update CIDR routes
+	if err := c.syncCIDRRoutes(); err != nil {
+		return fmt.Errorf("failed to cleanup CIDRs: %w", err)
+	}
+	if c.TunnelMode {
+		// Noting to do
+		return nil
+	}
+
 	log.Info("starting vmi routes controller")
 	c.RunningUUID = uuid.New()
 
@@ -102,25 +116,6 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	go informer.Run(stopper)
 	log.Info("syncronizing")
 
-	//handle tunnel mode
-	for _, cidr := range c.CIDRs {
-		route := netlink.Route{
-			Dst:       cidr,
-			LinkIndex: c.HostIfaceIndex,
-		}
-		if c.TunnelMode {
-			log.Info("adding routes for tunnel mode")
-			if err := c.RouteAdd(&route); err != nil && !os.IsExist(err) {
-				return fmt.Errorf("failed to remove route from node, %v", err)
-			}
-		} else {
-			log.Info("removing routes for tunnel mode")
-			if err := c.RouteDel(&route); err != nil && err.Error() != "no such process" {
-				return fmt.Errorf("failed to remove route from node, %v", err)
-			}
-		}
-	}
-
 	//syncronize the cache before starting to process
 	if !cache.WaitForCacheSync(stopper, informer.HasSynced) {
 		utilruntime.HandleError(fmt.Errorf("Timed out waiting for caches to sync"))
@@ -135,11 +130,8 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	}
 	log.Info("cleanup of removed VMIs completed")
 
-	// for tunnel mode we don't need manager anymore
-	if !c.TunnelMode {
-		<-ctx.Done()
-		log.Info("shutting down vmi router controller")
-	}
+	<-ctx.Done()
+	log.Info("shutting down vmi router controller")
 
 	return nil
 }
@@ -155,10 +147,10 @@ func (c VMIRouterController) addFunc(obj interface{}) {
 func (c VMIRouterController) deleteFunc(obj interface{}) {
 	vmi := obj.(apiv1.Object)
 	dbKey := vmi.GetNamespace() + "/" + vmi.GetName()
-	cached := c.getCachedRoute(dbKey)
+	cached := c.getCachedRoute(VMIRoutesBucket, dbKey)
 	if cached.IP != "" {
-		log.Info(fmt.Sprintf("Deleting route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), cached.IP, cached.NodeName, cached.NodeIP))
-		if err := c.deleteCachedRoute(dbKey); err != nil {
+		log.Info(fmt.Sprintf("deleting route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), cached.IP, cached.NodeName, cached.NodeIP))
+		if err := c.deleteCachedRoute(VMIRoutesBucket, dbKey); err != nil {
 			log.Error(err, "failed to delete route")
 		}
 	}
@@ -191,10 +183,10 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 	}
 
 	dbKey := vmi.GetNamespace() + "/" + vmi.GetName()
-	cached := c.getCachedRoute(dbKey)
+	cached := c.getCachedRoute(VMIRoutesBucket, dbKey)
 
 	if !c.ipIsManaged(parsedIP) {
-		c.deleteCachedRouteIfExists(dbKey, &cached)
+		c.deleteCachedRouteIfExists(VMIRoutesBucket, dbKey, &cached)
 		// IP is not managed
 		return
 	}
@@ -218,22 +210,22 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 
 	if cached.EqualWithoutUUID(&toCache) {
 		if cached.UUID.String() != toCache.UUID.String() {
-			err = c.addCachedRoute(dbKey, toCache)
+			err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
 			if err != nil {
 				log.Error(err, "failed to add route")
 				return
 			}
-			log.Info(fmt.Sprintf("Loaded route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
+			log.Info(fmt.Sprintf("loaded route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
 		}
 		// No changes
 		return
 	}
 
 	// Old route found
-	c.deleteCachedRouteIfExists(dbKey, &cached)
+	c.deleteCachedRouteIfExists(VMIRoutesBucket, dbKey, &cached)
 
-	log.Info(fmt.Sprintf("Adding route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
-	err = c.addCachedRoute(dbKey, toCache)
+	log.Info(fmt.Sprintf("adding route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
+	err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
 	if err != nil {
 		log.Error(err, "failed to add route")
 		return
@@ -241,10 +233,10 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 }
 
 // Returns route from local cache
-func (c VMIRouterController) getCachedRoute(dbKey string) CachedRoute {
+func (c VMIRouterController) getCachedRoute(dbBucket, dbKey string) CachedRoute {
 	var cached CachedRoute
 	c.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("routes"))
+		b := tx.Bucket([]byte(dbBucket))
 		cachedBytes := b.Get([]byte(dbKey))
 		if len(cachedBytes) == 0 {
 			return nil
@@ -258,10 +250,10 @@ func (c VMIRouterController) getCachedRoute(dbKey string) CachedRoute {
 }
 
 // Deletes route from local cache
-func (c VMIRouterController) deleteCachedRoute(dbKey string) error {
+func (c VMIRouterController) deleteCachedRoute(dbBucket, dbKey string) error {
 	return c.DB.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("routes"))
-		cached := c.getCachedRoute(dbKey)
+		b := tx.Bucket([]byte(dbBucket))
+		cached := c.getCachedRoute(dbBucket, dbKey)
 		route, err := c.NewRoute(cached)
 		if err != nil {
 			return fmt.Errorf("failed to generate route for delete, %v", err)
@@ -277,7 +269,7 @@ func (c VMIRouterController) deleteCachedRoute(dbKey string) error {
 }
 
 // Adds route into local cache
-func (c VMIRouterController) addCachedRoute(dbKey string, cached CachedRoute) error {
+func (c VMIRouterController) addCachedRoute(dbBucket, dbKey string, cached CachedRoute) error {
 	route, err := c.NewRoute(cached)
 	if err != nil {
 		return fmt.Errorf("failed to generate route for adding, %v", err)
@@ -288,7 +280,7 @@ func (c VMIRouterController) addCachedRoute(dbKey string, cached CachedRoute) er
 		return err
 	}
 	return c.DB.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("routes"))
+		b := tx.Bucket([]byte(dbBucket))
 		if err := c.RouteAdd(&route); err != nil && !os.IsExist(err) {
 			return fmt.Errorf("failed to add route to node, %v", err)
 		}
@@ -301,8 +293,9 @@ func (c VMIRouterController) addCachedRoute(dbKey string, cached CachedRoute) er
 
 // Runs cleanup for removed VMIs
 func (c VMIRouterController) cleanupRemovedVMIs(informer cache.SharedIndexInformer) error {
-	return c.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("routes"))
+	vmisToDelete := make(map[string]CachedRoute)
+	err := c.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(VMIRoutesBucket))
 		cur := b.Cursor()
 		var cached CachedRoute
 		for key, val := cur.First(); key != nil; key, val = cur.Next() {
@@ -313,14 +306,100 @@ func (c VMIRouterController) cleanupRemovedVMIs(informer cache.SharedIndexInform
 				if err := json.Unmarshal(val, &cached); err != nil {
 					log.Error(err, "failed to unmarshal cached information")
 				}
-				log.Info(fmt.Sprintf("Deleting route for %s (%s) via %s (%s)", key, cached.IP, cached.NodeName, cached.NodeIP))
-				if err := c.deleteCachedRoute(string(key)); err != nil {
-					return err
-				}
+				vmisToDelete[string(key)] = cached
 			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	for key, cached := range vmisToDelete {
+		log.Info(fmt.Sprintf("deleting route for %s (%s) via %s (%s)", key, cached.IP, cached.NodeName, cached.NodeIP))
+		if err := c.deleteCachedRoute(VMIRoutesBucket, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Update routes for CIDRs
+func (c VMIRouterController) syncCIDRRoutes() error {
+	var cidrsToDelete []string
+	// removing CIDR routes
+	err := c.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(CIDRRoutesBucket))
+		b.ForEach(func(key, val []byte) error {
+			shouldDelete := true
+			for _, cidr := range c.CIDRs {
+				if c.TunnelMode {
+					if string(key) == cidr.String() {
+						shouldDelete = false
+						log.Info(fmt.Sprintf("loaded route for cidr %s", key))
+						break
+					}
+				}
+			}
+			if shouldDelete {
+				cidrsToDelete = append(cidrsToDelete, string(key))
+			}
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, key := range cidrsToDelete {
+		log.Info(fmt.Sprintf("deleting route for cidr %s", key))
+		if err := c.deleteCachedRoute(CIDRRoutesBucket, string(key)); err != nil {
+			return err
+		}
+	}
+
+	if c.TunnelMode {
+		// adding new CIDR routes
+		for _, cidr := range c.CIDRs {
+			route := CachedRoute{
+				IP: cidr.String(),
+			}
+			cached := c.getCachedRoute(CIDRRoutesBucket, cidr.String())
+			if cached.IP == "" {
+				log.Info(fmt.Sprintf("adding route for cidr %s", cidr.String()))
+				if err := c.addCachedRoute(CIDRRoutesBucket, cidr.String(), route); err != nil && !os.IsExist(err) {
+					return fmt.Errorf("failed to add route %v", err)
+				}
+			}
+		}
+
+		// removing VM routes
+		vmisToDelete := make(map[string]CachedRoute)
+		err = c.DB.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(VMIRoutesBucket))
+			var cached CachedRoute
+			b.ForEach(func(key, val []byte) error {
+				if err := json.Unmarshal(val, &cached); err != nil {
+					log.Error(err, "failed to unmarshal cached information")
+				}
+				vmisToDelete[string(key)] = cached
+				return nil
+			})
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		for key, cached := range vmisToDelete {
+			log.Info(fmt.Sprintf("deleting route for %s (%s) via %s (%s)", key, cached.IP, cached.NodeName, cached.NodeIP))
+			if err := c.deleteCachedRoute(VMIRoutesBucket, key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func getVMIPodNetworkIPAddress(vmi *virtv1.VirtualMachineInstance) string {
@@ -384,10 +463,10 @@ func (c VMIRouterController) ipIsManaged(ip net.IP) bool {
 	return false
 }
 
-func (c VMIRouterController) deleteCachedRouteIfExists(dbKey string, cached *CachedRoute) {
+func (c VMIRouterController) deleteCachedRouteIfExists(dbBucket, dbKey string, cached *CachedRoute) {
 	if cached.IP != "" {
-		log.Info(fmt.Sprintf("Deleting route for %s (%s) via %s (%s)", dbKey, cached.IP, cached.NodeName, cached.NodeIP))
-		if err := c.deleteCachedRoute(dbKey); err != nil {
+		log.Info(fmt.Sprintf("deleting route for %s (%s) via %s (%s)", dbKey, cached.IP, cached.NodeName, cached.NodeIP))
+		if err := c.deleteCachedRoute(dbBucket, dbKey); err != nil {
 			log.Error(err, "failed to delete route")
 			return
 		}
@@ -395,6 +474,10 @@ func (c VMIRouterController) deleteCachedRouteIfExists(dbKey string, cached *Cac
 }
 
 func appendNetmask(ip string) string {
+	if strings.Contains(ip, "/") {
+		// IP already contains netmask
+		return ip
+	}
 	if strings.Contains(ip, ":") {
 		// IPv6
 		return ip + "/128"

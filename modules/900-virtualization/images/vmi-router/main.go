@@ -69,7 +69,7 @@ func main() {
 	flag.Var(&cidrs, "cidr", "CIDRs enabled to route (multiple flags allowed)")
 	flag.StringVar(&dbFile, "db", "routes.db", "Path to database of local routes.")
 	flag.BoolVar(&dryRun, "dry-run", false, "Don't perform any changes on the node.")
-	flag.BoolVar(&tunnelMode, "tunnel", false, "Route all traffic via local interface (for tunneling mode).")
+	flag.BoolVar(&tunnelMode, "tunnel", false, "Route all CIDRs via local interface (for tunneling mode).")
 	flag.StringVar(&hostIfaceName, "host-iface", "cilium_host", "Name of local CNI interface.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -173,9 +173,11 @@ func initDB(dbpath string) (*bolt.DB, error) {
 	}
 
 	db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucket([]byte("routes"))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
+		for _, bucketName := range []string{controllers.VMIRoutesBucket, controllers.CIDRRoutesBucket} {
+			_, err := tx.CreateBucket([]byte(bucketName))
+			if err != nil {
+				return fmt.Errorf("create bucket: %s", err)
+			}
 		}
 		return nil
 	})
