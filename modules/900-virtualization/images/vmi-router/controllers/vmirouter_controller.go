@@ -45,13 +45,15 @@ var (
 )
 
 type VMIRouterController struct {
-	RESTClient  rest.Interface
-	NodeName    string
-	DB          *bolt.DB
-	RunningUUID uuid.UUID
-	CIDRs       []*net.IPNet
-	RouteAdd    func(*netlink.Route) error
-	RouteDel    func(*netlink.Route) error
+	RESTClient     rest.Interface
+	NodeName       string
+	DB             *bolt.DB
+	RunningUUID    uuid.UUID
+	CIDRs          []*net.IPNet
+	TunnelMode     bool
+	RouteAdd       func(*netlink.Route) error
+	RouteDel       func(*netlink.Route) error
+	HostIfaceIndex int
 	client.Client
 }
 
@@ -87,6 +89,7 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 			},
 		},
 	)
+
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addFunc,
 		DeleteFunc: c.deleteFunc,
@@ -98,6 +101,25 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	defer utilruntime.HandleCrash()
 	go informer.Run(stopper)
 	log.Info("syncronizing")
+
+	//handle tunnel mode
+	for _, cidr := range c.CIDRs {
+		route := netlink.Route{
+			Dst:       cidr,
+			LinkIndex: c.HostIfaceIndex,
+		}
+		if c.TunnelMode {
+			log.Info("adding routes for tunnel mode")
+			if err := c.RouteAdd(&route); err != nil && !os.IsExist(err) {
+				return fmt.Errorf("failed to remove route from node, %v", err)
+			}
+		} else {
+			log.Info("removing routes for tunnel mode")
+			if err := c.RouteDel(&route); err != nil && err.Error() != "no such process" {
+				return fmt.Errorf("failed to remove route from node, %v", err)
+			}
+		}
+	}
 
 	//syncronize the cache before starting to process
 	if !cache.WaitForCacheSync(stopper, informer.HasSynced) {
@@ -113,14 +135,16 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	}
 	log.Info("cleanup of removed VMIs completed")
 
-	<-ctx.Done()
-	log.Info("shutting down vmi router controller")
+	// for tunnel mode we don't need manager anymore
+	if !c.TunnelMode {
+		<-ctx.Done()
+		log.Info("shutting down vmi router controller")
+	}
 
 	return nil
 }
 
 func (c VMIRouterController) addFunc(obj interface{}) {
-
 	vmi, ok := obj.(*virtv1.VirtualMachineInstance)
 	if !ok {
 		// object is not VMI
@@ -343,8 +367,7 @@ func (c VMIRouterController) NewRoute(r CachedRoute) (netlink.Route, error) {
 		}
 	} else {
 		// fmt.Printf("ip route add %s/32 dev cilium_host\n", vmiIP)
-		ciliumHostIface, err := netlink.LinkByName("cilium_host")
-		route.LinkIndex = ciliumHostIface.Attrs().Index
+		route.LinkIndex = c.HostIfaceIndex
 		if err != nil {
 			return route, err
 		}
