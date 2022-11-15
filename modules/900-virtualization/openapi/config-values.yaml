@@ -7,6 +7,11 @@ properties:
       Manually enable the high availability mode.
 
       By default, Deckhouse automatically decides whether to enable the HA mode. Click [here](../../deckhouse-configure-global.html#parameters) to learn more about the HA mode for modules.
+  routeLocal:
+    type: boolean
+    x-examples: [true, false]
+    description: |
+      Route all CIDRs via local interface (for tunneling mode)
   vmCIDRs:
     type: array
     items:

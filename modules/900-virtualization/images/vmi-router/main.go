@@ -63,13 +63,13 @@ func main() {
 	var hostIfaceName string
 	var dbFile string
 	var dryRun bool
-	var tunnelMode bool
+	var routeLocal bool
 	var metricsAddr string
 	var probeAddr string
 	flag.Var(&cidrs, "cidr", "CIDRs enabled to route (multiple flags allowed)")
 	flag.StringVar(&dbFile, "db", "routes.db", "Path to database of local routes.")
 	flag.BoolVar(&dryRun, "dry-run", false, "Don't perform any changes on the node.")
-	flag.BoolVar(&tunnelMode, "tunnel", false, "Route all CIDRs via local interface (for tunneling mode).")
+	flag.BoolVar(&routeLocal, "route-local", false, "Route all CIDRs via local interface (for tunneling mode).")
 	flag.StringVar(&hostIfaceName, "host-iface", "cilium_host", "Name of local CNI interface.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -121,7 +121,7 @@ func main() {
 		DB:         db,
 		RESTClient: clientSet.RestClient(),
 		Client:     mgr.GetClient(),
-		TunnelMode: tunnelMode,
+		RouteLocal: routeLocal,
 		CIDRs:      parsedCIDRs,
 		RouteAdd:   netlink.RouteAdd,
 		RouteDel:   netlink.RouteDel,

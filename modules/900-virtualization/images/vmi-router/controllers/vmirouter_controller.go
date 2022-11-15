@@ -55,7 +55,7 @@ type VMIRouterController struct {
 	DB             *bolt.DB
 	RunningUUID    uuid.UUID
 	CIDRs          []*net.IPNet
-	TunnelMode     bool
+	RouteLocal     bool
 	RouteAdd       func(*netlink.Route) error
 	RouteDel       func(*netlink.Route) error
 	HostIfaceIndex int
@@ -87,7 +87,7 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	if err := c.syncCIDRRoutes(); err != nil {
 		return fmt.Errorf("failed to cleanup CIDRs: %w", err)
 	}
-	if c.TunnelMode {
+	if c.RouteLocal {
 		// Noting to do
 		return nil
 	}
@@ -333,7 +333,7 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 		b.ForEach(func(key, val []byte) error {
 			shouldDelete := true
 			for _, cidr := range c.CIDRs {
-				if c.TunnelMode {
+				if c.RouteLocal {
 					if string(key) == cidr.String() {
 						shouldDelete = false
 						log.Info(fmt.Sprintf("loaded route for cidr %s", key))
@@ -359,7 +359,7 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 		}
 	}
 
-	if c.TunnelMode {
+	if c.RouteLocal {
 		// adding new CIDR routes
 		for _, cidr := range c.CIDRs {
 			route := CachedRoute{
