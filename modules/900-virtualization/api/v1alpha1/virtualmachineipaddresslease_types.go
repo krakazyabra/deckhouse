@@ -34,6 +34,7 @@ type VirtualMachineIPAddressLeaseStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:JSONPath=".spec.static",name=Static,type=string
+//+kubebuilder:printcolumn:JSONPath=".spec.vmName",name=VM,type=string
 //+kubebuilder:resource:shortName={"vmip","vmips"}
 
 // VirtualMachineIPAddressLease is the Schema for the virtualmachineipaddressleases API

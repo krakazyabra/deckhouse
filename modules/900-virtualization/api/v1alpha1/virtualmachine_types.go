@@ -31,7 +31,7 @@ type VirtualMachineSpec struct {
 	Resources       v1.ResourceList                `json:"resources,omitempty"`
 	UserName        string                         `json:"userName,omitempty"`
 	SSHPublicKey    string                         `json:"sshPublicKey,omitempty"`
-	BootDisk        BootDisk                       `json:"bootDisk,omitempty"`
+	BootDisk        *BootDisk                      `json:"bootDisk,omitempty"`
 	CloudInit       *virtv1.CloudInitNoCloudSource `json:"cloudInit,omitempty"`
 	DiskAttachments *[]DiskSource                  `json:"diskAttachments,omitempty"`
 }

@@ -19,7 +19,14 @@ spec:
     singular: virtualmachinedisk
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.ephemeral
+      name: Static
+      type: string
+    - jsonPath: .spec.vmName
+      name: VM
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: VirtualMachineDisk is the Schema for the virtualmachinedisks
@@ -40,6 +47,8 @@ spec:
           spec:
             description: VirtualMachineDiskSpec defines the desired state of VirtualMachineDisk
             properties:
+              ephemeral:
+                type: boolean
               size:
                 anyOf:
                 - type: integer
@@ -67,6 +76,8 @@ spec:
                 - name
                 type: object
               storageClassName:
+                type: string
+              vmName:
                 type: string
             type: object
           status:

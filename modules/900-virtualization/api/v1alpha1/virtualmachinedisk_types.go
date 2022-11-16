@@ -30,6 +30,8 @@ type VirtualMachineDiskSpec struct {
 	StorageClassName string                            `json:"storageClassName,omitempty"`
 	Size             resource.Quantity                 `json:"size,omitempty"`
 	Source           *corev1.TypedLocalObjectReference `json:"source,omitempty"`
+	VMName           string                            `json:"vmName,omitempty"`
+	Ephemeral        bool                              `json:"ephemeral,omitempty"`
 }
 
 // VirtualMachineDiskStatus defines the observed state of VirtualMachineDisk
@@ -39,6 +41,8 @@ type VirtualMachineDiskStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:shortName={"vmd","vmdisk","vmdisks"}
+//+kubebuilder:printcolumn:JSONPath=".spec.ephemeral",name=Ephemeral,type=string
+//+kubebuilder:printcolumn:JSONPath=".spec.vmName",name=VM,type=string
 
 // VirtualMachineDisk is the Schema for the virtualmachinedisks API
 type VirtualMachineDisk struct {

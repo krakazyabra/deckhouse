@@ -437,7 +437,11 @@ func (in *VirtualMachineSpec) DeepCopyInto(out *VirtualMachineSpec) {
 			(*out)[key] = val.DeepCopy()
 		}
 	}
-	in.BootDisk.DeepCopyInto(&out.BootDisk)
+	if in.BootDisk != nil {
+		in, out := &in.BootDisk, &out.BootDisk
+		*out = new(BootDisk)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.CloudInit != nil {
 		in, out := &in.CloudInit, &out.CloudInit
 		*out = new(corev1.CloudInitNoCloudSource)

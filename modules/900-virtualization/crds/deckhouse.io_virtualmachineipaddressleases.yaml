@@ -22,6 +22,9 @@ spec:
     - jsonPath: .spec.static
       name: Static
       type: string
+    - jsonPath: .spec.vmName
+      name: VM
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

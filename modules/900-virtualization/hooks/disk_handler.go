@@ -101,6 +101,8 @@ type VirtualMachineDiskSnapshot struct {
 	StorageClassName string
 	Size             resource.Quantity
 	Source           *corev1.TypedLocalObjectReference
+	VMName           string
+	Ephemeral        bool
 }
 
 type ClusterVirtualMachineImageSnapshot struct {
@@ -166,6 +168,7 @@ func applyVirtualMachineDiskFilter(obj *unstructured.Unstructured) (go_hook.Filt
 		StorageClassName: disk.Spec.StorageClassName,
 		Size:             disk.Spec.Size,
 		Source:           disk.Spec.Source,
+		Ephemeral:        disk.Spec.Ephemeral,
 	}, nil
 }
 

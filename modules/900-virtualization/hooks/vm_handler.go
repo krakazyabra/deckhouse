@@ -37,7 +37,7 @@ const (
 	deckhouseVMSnapshot    = "vmHandlerDeckhouseVM"
 	kubevirtVMSnapshot     = "vmHandlerKubevirtVM"
 	kubevirtVMsCRDSnapshot = "vmHandlerKubevirtVMCRD"
-	diskNamesSnapshot      = "disksNamesSnapshot"
+	vmDisksSnapshot        = "vmDisksSnapshot"
 )
 
 var vmHandlerHookConfig = &go_hook.HookConfig{
@@ -57,10 +57,10 @@ var vmHandlerHookConfig = &go_hook.HookConfig{
 			FilterFunc: applyDeckhouseVMFilter,
 		},
 		{
-			Name:       diskNamesSnapshot,
+			Name:       vmDisksSnapshot,
 			ApiVersion: gv,
 			Kind:       "VirtualMachineDisk",
-			FilterFunc: applyVirtualMachineDiskNamesFilter,
+			FilterFunc: applyVirtualMachineDisksFilter,
 		},
 		{
 			Name:       kubevirtVMsCRDSnapshot,
@@ -101,7 +101,7 @@ func applyDeckhouseVMFilter(obj *unstructured.Unstructured) (go_hook.FilterResul
 	return vm, nil
 }
 
-func applyVirtualMachineDiskNamesFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+func applyVirtualMachineDisksFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
 	disk := &v1alpha1.VirtualMachineDisk{}
 	err := sdk.FromUnstructured(obj, disk)
 	if err != nil {
@@ -111,6 +111,7 @@ func applyVirtualMachineDiskNamesFilter(obj *unstructured.Unstructured) (go_hook
 	return &VirtualMachineDiskSnapshot{
 		Name:      disk.Name,
 		Namespace: disk.Namespace,
+		VMName:    disk.Spec.VMName,
 	}, nil
 }
 
@@ -143,28 +144,90 @@ func handleVMs(input *go_hook.HookInput) error {
 	// Start main hook logic
 	kubevirtVMSnap := input.Snapshots[kubevirtVMSnapshot]
 	deckhouseVMSnap := input.Snapshots[deckhouseVMSnapshot]
-	diskNameSnap := input.Snapshots[diskNamesSnapshot]
+	diskSnap := input.Snapshots[vmDisksSnapshot]
 
-	if len(kubevirtVMSnap) == 0 && len(deckhouseVMSnap) == 0 {
-		input.LogEntry.Warnln("VirtualMachine not found. Skip")
+	if len(kubevirtVMSnap) == 0 && len(deckhouseVMSnap) == 0 && len(diskSnap) == 0 {
+		input.LogEntry.Warnln("VirtualMachines and VirtualMachineDisks not found. Skip")
 		return nil
 	}
 
-VM_LOOP:
 	for _, sRaw := range deckhouseVMSnap {
 		d8vm := sRaw.(*v1alpha1.VirtualMachine)
 		if d8vm.Status.IPAddress == "" {
-			// IPAddress is not set by IPAM, nothing todo
+			// IPAddress is not set by IPAM, nothing to do
 			continue
 		}
-		for _, dRaw := range kubevirtVMSnap {
-			kvvm := dRaw.(*virtv1.VirtualMachine)
-			if d8vm.Namespace != kvvm.Namespace {
-				continue
+		// Handle boot disk
+		if d8vm.Spec.BootDisk != nil {
+			var bootVirtualMachineDiskName string
+			var disk *VirtualMachineDiskSnapshot
+
+			switch d8vm.Spec.BootDisk.Source.Kind {
+			case "VirtualMachineDisk":
+				bootVirtualMachineDiskName = d8vm.Spec.BootDisk.Source.Name
+				disk = getDisk(&diskSnap, d8vm.Namespace, d8vm.Spec.BootDisk.Source.Name)
+				if disk == nil {
+					input.LogEntry.Warnln("Disk not found")
+				}
+
+			case "ClusterVirtualMachineImage":
+				bootVirtualMachineDiskName = d8vm.Name + "-boot"
+				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
+
+				if disk != nil {
+					// Disk found, ensure ephemeral is set correctly
+					if d8vm.Spec.BootDisk.Ephemeral != disk.Ephemeral {
+						patch := map[string]interface{}{"spec": map[string]bool{"ephemeral": d8vm.Spec.BootDisk.Ephemeral}}
+						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+					}
+				} else {
+					// Disk not found, create a new VirtualMachineDisk
+					disk := &v1alpha1.VirtualMachineDisk{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "VirtualMachineDisk",
+							APIVersion: gv,
+						},
+						ObjectMeta: v1.ObjectMeta{
+							Name:      bootVirtualMachineDiskName,
+							Namespace: d8vm.Namespace,
+						},
+						Spec: v1alpha1.VirtualMachineDiskSpec{
+							StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
+							Size:             d8vm.Spec.BootDisk.Size,
+							Source:           d8vm.Spec.BootDisk.Source,
+							VMName:           d8vm.Name,
+							Ephemeral:        d8vm.Spec.BootDisk.Ephemeral,
+						},
+					}
+					input.PatchCollector.Create(disk)
+				}
+
+			default:
+				input.LogEntry.Warnln("Unknown source kind")
 			}
-			if d8vm.Name != kvvm.Name {
-				continue
+
+			if disk != nil {
+				err := checkAndApplyDiskPatches(input, d8vm, disk)
+				if err != nil {
+					return err
+				}
 			}
+		}
+
+		// handle other disks
+		if d8vm.Spec.DiskAttachments != nil {
+			for _, diskSource := range *d8vm.Spec.DiskAttachments {
+				disk := getDisk(&diskSnap, d8vm.Namespace, diskSource.Name)
+				err := checkAndApplyDiskPatches(input, d8vm, disk)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// handle KubeVirt VirtualMachine
+		kvvm := getKubevirtVM(&kubevirtVMSnap, d8vm.Namespace, d8vm.Name)
+		if kvvm != nil {
 			// KubeVirt VirtualMachine found
 			apply := func(u *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 				vm := &virtv1.VirtualMachine{}
@@ -179,58 +242,30 @@ VM_LOOP:
 				return sdk.ToUnstructured(&vm)
 			}
 			input.PatchCollector.Filter(apply, "kubevirt.io/v1", "VirtualMachine", d8vm.Namespace, d8vm.Name)
-
-			continue VM_LOOP
-		}
-
-		// KubeVirt VirtualMachine not found, needs to create a new one
-
-		var bootVirtualMachineDiskName string
-		switch d8vm.Spec.BootDisk.Source.Kind {
-		case "VirtualMachineDisk":
-			bootVirtualMachineDiskName = d8vm.Spec.BootDisk.Source.Name
-			if disk := getDisk(&diskNameSnap, d8vm.Namespace, d8vm.Spec.BootDisk.Source.Name); disk == nil {
-				input.LogEntry.Warnln("Disk not found")
+		} else {
+			// KubeVirt VirtualMachine not found, needs to create a new one
+			vm := &virtv1.VirtualMachine{}
+			err := setVMFields(d8vm, vm)
+			if err != nil {
+				return err
 			}
-		case "ClusterVirtualMachineImage":
-			bootVirtualMachineDiskName = d8vm.Name + "-boot"
-			if disk := getDisk(&diskNameSnap, d8vm.Namespace, bootVirtualMachineDiskName); disk == nil {
-				// Create a new VirtualMachineDisk
-				disk := &v1alpha1.VirtualMachineDisk{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "VirtualMachineDisk",
-						APIVersion: gv,
-					},
-					ObjectMeta: v1.ObjectMeta{
-						Name:      bootVirtualMachineDiskName,
-						Namespace: d8vm.Namespace,
-						OwnerReferences: []v1.OwnerReference{{
-							APIVersion:         gv,
-							BlockOwnerDeletion: pointer.Bool(true),
-							Controller:         pointer.Bool(true),
-							Kind:               "VirtualMachine",
-							Name:               d8vm.Name,
-							UID:                d8vm.UID,
-						}},
-					},
-					Spec: v1alpha1.VirtualMachineDiskSpec{
-						StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
-						Size:             d8vm.Spec.BootDisk.Size,
-						Source:           d8vm.Spec.BootDisk.Source,
-					},
-				}
-				input.PatchCollector.Create(disk)
-			}
-		default:
-			input.LogEntry.Warnln("Unknown source kind")
+			input.PatchCollector.Create(vm)
 		}
+	}
 
-		kvvm := &virtv1.VirtualMachine{}
-		err := setVMFields(d8vm, kvvm)
-		if err != nil {
-			return err
+	// Disks cleanup loop
+	for _, sRaw := range diskSnap {
+		disk := sRaw.(*VirtualMachineDiskSnapshot)
+		if disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
+			if disk.Ephemeral {
+				// Remove vmName
+				patch := map[string]interface{}{"spec": map[string]string{"vmName": ""}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+			} else {
+				// Delete disk
+				input.PatchCollector.Delete(gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+			}
 		}
-		input.PatchCollector.Create(kvvm)
 	}
 
 	return nil
@@ -318,7 +353,7 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 					Name: "boot",
 					VolumeSource: virtv1.VolumeSource{
 						DataVolume: &virtv1.DataVolumeSource{
-							Name:         "disk-" + vm.Name + "-boot", // TODO kind Disk?
+							Name:         "disk-" + vm.Name + "-boot",
 							Hotpluggable: false,
 						},
 					},
@@ -358,6 +393,37 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 				},
 			})
 		}
+	}
+	return nil
+}
+
+func getKubevirtVM(snapshot *[]go_hook.FilterResult, namespace, name string) *virtv1.VirtualMachine {
+	for _, dRaw := range *snapshot {
+		vm := dRaw.(*virtv1.VirtualMachine)
+		if vm.Namespace == namespace && vm.Name == name {
+			return vm
+		}
+	}
+	return nil
+}
+
+func getD8VM(snapshot *[]go_hook.FilterResult, namespace, name string) *v1alpha1.VirtualMachine {
+	for _, dRaw := range *snapshot {
+		vm := dRaw.(*v1alpha1.VirtualMachine)
+		if vm.Namespace == namespace && vm.Name == name {
+			return vm
+		}
+	}
+	return nil
+}
+
+func checkAndApplyDiskPatches(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine, disk *VirtualMachineDiskSnapshot) error {
+	if disk.VMName != "" && disk.VMName != d8vm.Name {
+		return fmt.Errorf("disk already attached to other VirtualMachine: %v", disk.VMName)
+	}
+	if disk.VMName != d8vm.Name {
+		patch := map[string]interface{}{"spec": map[string]string{"vmName": d8vm.Name}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 	}
 	return nil
 }
