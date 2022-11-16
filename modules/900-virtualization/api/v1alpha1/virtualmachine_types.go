@@ -56,9 +56,6 @@ type BootDisk struct {
 	Size resource.Quantity `json:"size"`
 	// Should boot disk be removed with VM
 	Ephemeral bool `json:"ephemeral,omitempty"`
-	// Hotpluggable indicates whether the volume can be hotplugged and hotunplugged.
-	// +optional
-	Hotpluggable bool `json:"hotpluggable,omitempty"`
 	// Bus indicates the type of disk device to emulate.
 	// supported values: virtio, sata, scsi, usb.
 	Bus string `json:"bus,omitempty"`

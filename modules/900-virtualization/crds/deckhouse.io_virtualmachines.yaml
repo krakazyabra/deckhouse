@@ -49,10 +49,6 @@ spec:
                   ephemeral:
                     description: Should boot disk be removed with VM
                     type: boolean
-                  hotpluggable:
-                    description: Hotpluggable indicates whether the volume can be
-                      hotplugged and hotunplugged.
-                    type: boolean
                   size:
                     anyOf:
                     - type: integer

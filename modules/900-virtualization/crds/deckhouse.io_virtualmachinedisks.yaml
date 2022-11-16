@@ -21,7 +21,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.ephemeral
-      name: Static
+      name: Ephemeral
       type: string
     - jsonPath: .spec.vmName
       name: VM

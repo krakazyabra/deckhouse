@@ -112,6 +112,7 @@ func applyVirtualMachineDisksFilter(obj *unstructured.Unstructured) (go_hook.Fil
 		Name:      disk.Name,
 		Namespace: disk.Namespace,
 		VMName:    disk.Spec.VMName,
+		Ephemeral: disk.Spec.Ephemeral,
 	}, nil
 }
 
@@ -158,8 +159,8 @@ func handleVMs(input *go_hook.HookInput) error {
 			continue
 		}
 		// Handle boot disk
+		var bootVirtualMachineDiskName string
 		if d8vm.Spec.BootDisk != nil {
-			var bootVirtualMachineDiskName string
 			var disk *VirtualMachineDiskSnapshot
 
 			switch d8vm.Spec.BootDisk.Source.Kind {
@@ -175,7 +176,8 @@ func handleVMs(input *go_hook.HookInput) error {
 				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
 
 				if disk != nil {
-					// Disk found, ensure ephemeral is set correctly
+
+					// Disk found, ensure ephemeral is set
 					if d8vm.Spec.BootDisk.Ephemeral != disk.Ephemeral {
 						patch := map[string]interface{}{"spec": map[string]bool{"ephemeral": d8vm.Spec.BootDisk.Ephemeral}}
 						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
@@ -235,7 +237,7 @@ func handleVMs(input *go_hook.HookInput) error {
 				if err != nil {
 					return nil, err
 				}
-				err = setVMFields(d8vm, vm)
+				err = setVMFields(d8vm, vm, bootVirtualMachineDiskName)
 				if err != nil {
 					return nil, err
 				}
@@ -245,7 +247,7 @@ func handleVMs(input *go_hook.HookInput) error {
 		} else {
 			// KubeVirt VirtualMachine not found, needs to create a new one
 			vm := &virtv1.VirtualMachine{}
-			err := setVMFields(d8vm, vm)
+			err := setVMFields(d8vm, vm, bootVirtualMachineDiskName)
 			if err != nil {
 				return err
 			}
@@ -258,12 +260,12 @@ func handleVMs(input *go_hook.HookInput) error {
 		disk := sRaw.(*VirtualMachineDiskSnapshot)
 		if disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
 			if disk.Ephemeral {
+				// Delete disk
+				input.PatchCollector.Delete(gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+			} else {
 				// Remove vmName
 				patch := map[string]interface{}{"spec": map[string]string{"vmName": ""}}
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
-			} else {
-				// Delete disk
-				input.PatchCollector.Delete(gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 			}
 		}
 	}
@@ -271,7 +273,7 @@ func handleVMs(input *go_hook.HookInput) error {
 	return nil
 }
 
-func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error {
+func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, bootVirtualMachineDiskName string) error {
 	vm.TypeMeta = metav1.TypeMeta{
 		Kind:       "VirtualMachine",
 		APIVersion: "kubevirt.io/v1",
@@ -353,7 +355,7 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine) error
 					Name: "boot",
 					VolumeSource: virtv1.VolumeSource{
 						DataVolume: &virtv1.DataVolumeSource{
-							Name:         "disk-" + vm.Name + "-boot",
+							Name:         "disk-" + bootVirtualMachineDiskName,
 							Hotpluggable: false,
 						},
 					},

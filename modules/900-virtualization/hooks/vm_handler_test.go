@@ -69,6 +69,7 @@ spec:
       name: ubuntu-20.04
     size: 10Gi
     storageClassName: linstor-slow
+    ephemeral: true
   cloudInit:
     userData: |-
       chpasswd: { expire: False }
@@ -86,6 +87,72 @@ spec:
     name: centos-7
   storageClassName: linstor-slow
   size: 10Gi
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vm2
+  namespace: default
+spec:
+  running: true
+  resources:
+    memory: 512M
+    cpu: "1"
+  userName: admin
+  sshPublicKey: "ssh-rsa asdasdkflkasddf..."
+  bootDisk:
+    source:
+      kind: ClusterVirtualMachineImage
+      name: ubuntu-20.04
+    size: 10Gi
+    storageClassName: linstor-slow
+    ephemeral: false
+  cloudInit:
+    userData: |-
+      chpasswd: { expire: False }
+status:
+  ipAddress: 10.10.10.10
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: vm2-boot
+  namespace: default
+spec:
+  ephemeral: true
+  source:
+    kind: ClusterVirtualMachineImage
+    name: ubuntu-20.04
+  storageClassName: linstor-slow
+  size: 10Gi
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: vm3-boot
+  namespace: default
+spec:
+  ephemeral: false
+  vmName: vm3
+  source:
+    kind: ClusterVirtualMachineImage
+    name: ubuntu-20.04
+  storageClassName: linstor-slow
+  size: 10Gi
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: vm4-boot
+  namespace: default
+spec:
+  ephemeral: true
+  vmName: vm4
+  source:
+    kind: ClusterVirtualMachineImage
+    name: ubuntu-20.04
+  storageClassName: linstor-slow
+  size: 10Gi
 `),
 			)
 			f.RunHook()
@@ -95,9 +162,23 @@ spec:
 			Expect(f).To(ExecuteSuccessfully())
 			disk := f.KubernetesResource("VirtualMachineDisk", "default", "vm1-boot")
 			Expect(disk).To(Not(BeEmpty()))
+			Expect(disk.Field(`spec.vmName`).String()).To(Equal("vm1"))
+			Expect(disk.Field(`spec.ephemeral`).Bool()).To(BeTrue())
 			vm := f.KubernetesResource("virtualmachines.kubevirt.io", "default", "vm1")
 			Expect(vm).To(Not(BeEmpty()))
 			Expect(vm.Field(`apiVersion`).String()).To(Equal("kubevirt.io/v1"))
+
+			disk2 := f.KubernetesResource("VirtualMachineDisk", "default", "vm2-boot")
+			Expect(disk2).To(Not(BeEmpty()))
+			Expect(disk2.Field(`spec.vmName`).String()).To(Equal("vm2"))
+			Expect(disk2.Field(`spec.ephemeral`).Bool()).To(BeFalse())
+
+			disk3 := f.KubernetesResource("VirtualMachineDisk", "default", "vm3-boot")
+			Expect(disk3).To(Not(BeEmpty()))
+			Expect(disk3.Field(`spec.vmName`).String()).To(Equal(""))
+
+			disk4 := f.KubernetesResource("VirtualMachineDisk", "default", "vm4-boot")
+			Expect(disk4).To(BeEmpty())
 		})
 	})
 
