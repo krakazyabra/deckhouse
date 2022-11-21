@@ -30,7 +30,7 @@ import (
 	"k8s.io/utils/pointer"
 	virtv1 "kubevirt.io/api/core/v1"
 
-	"github.com/deckhouse/deckhouse/modules/900-virtualization/api/v1alpha1"
+	"github.com/deckhouse/deckhouse/modules/490-virtualization/api/v1alpha1"
 )
 
 const (

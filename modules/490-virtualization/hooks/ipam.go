@@ -27,7 +27,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/deckhouse/deckhouse/modules/900-virtualization/api/v1alpha1"
+	"github.com/deckhouse/deckhouse/modules/490-virtualization/api/v1alpha1"
 )
 
 const (

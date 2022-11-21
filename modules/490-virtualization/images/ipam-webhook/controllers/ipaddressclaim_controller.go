@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	d8v1alpha1 "github.com/deckhouse/deckhouse/modules/900-virtualization/api/v1alpha1"
+	d8v1alpha1 "github.com/deckhouse/deckhouse/modules/490-virtualization/api/v1alpha1"
 
 	kwhlog "github.com/slok/kubewebhook/v2/pkg/log"
 )

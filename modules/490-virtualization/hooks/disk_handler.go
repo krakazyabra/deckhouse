@@ -33,7 +33,7 @@ import (
 	"k8s.io/utils/pointer"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
-	"github.com/deckhouse/deckhouse/modules/900-virtualization/api/v1alpha1"
+	"github.com/deckhouse/deckhouse/modules/490-virtualization/api/v1alpha1"
 )
 
 const (

@@ -61,6 +61,8 @@ import (
 	_ "github.com/deckhouse/deckhouse/modules/402-ingress-nginx/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/402-ingress-nginx/requirements"
 	_ "github.com/deckhouse/deckhouse/modules/460-log-shipper/hooks"
+	_ "github.com/deckhouse/deckhouse/modules/490-virtualization/hooks"
+	_ "github.com/deckhouse/deckhouse/modules/491-cdi/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/500-cilium-hubble/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/500-cilium-hubble/hooks/https"
 	_ "github.com/deckhouse/deckhouse/modules/500-dashboard/hooks"
@@ -76,6 +78,4 @@ import (
 	_ "github.com/deckhouse/deckhouse/modules/600-secret-copier/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/810-deckhouse-web/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/810-deckhouse-web/hooks/https"
-	_ "github.com/deckhouse/deckhouse/modules/900-cdi/hooks"
-	_ "github.com/deckhouse/deckhouse/modules/900-virtualization/hooks"
 )

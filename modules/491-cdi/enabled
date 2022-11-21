@@ -18,7 +18,21 @@ source /deckhouse/shell_lib.sh
 
 function __main__() {
   enabled::disable_module_in_kubernetes_versions_less_than 1.21.0
-  echo "true" > "$MODULE_ENABLED_RESULT"
+  if values::array_has global.enabledModules "virtualization"; then
+    echo "true" > $MODULE_ENABLED_RESULT
+  else
+    echo "false" > $MODULE_ENABLED_RESULT
+  fi
+  if [ "$enabled" = "false" ]; then
+    # workaround: allow explicit enabling of the module
+    case "$(kubectl get -n d8-system cm/deckhouse -o jsonpath={.data.cdiEnabled})" in
+      # match all cases of true|y|yes|1
+      [Tt][Rr][Uu][Ee]|[Yy]|[Yy][Ee][Ss]|1)
+        enabled=true
+        ;;
+    esac
+  fi
+
 }
 
 enabled::run "$@"

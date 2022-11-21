@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 
-	d8v1alpha1 "github.com/deckhouse/deckhouse/modules/900-virtualization/api/v1alpha1"
+	d8v1alpha1 "github.com/deckhouse/deckhouse/modules/490-virtualization/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
