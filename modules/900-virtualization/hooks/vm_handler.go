@@ -355,8 +355,9 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, bootV
 					Name: "boot",
 					VolumeSource: virtv1.VolumeSource{
 						DataVolume: &virtv1.DataVolumeSource{
-							Name:         "disk-" + bootVirtualMachineDiskName,
-							Hotpluggable: false,
+							Name: "disk-" + bootVirtualMachineDiskName,
+							// Workaround for gh:#7710
+							Hotpluggable: true,
 						},
 					},
 				},
@@ -389,8 +390,9 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, bootV
 				Name: diskName,
 				VolumeSource: virtv1.VolumeSource{
 					DataVolume: &virtv1.DataVolumeSource{
-						Name:         "disk-" + disk.Name,
-						Hotpluggable: disk.Hotpluggable,
+						Name: "disk-" + disk.Name,
+						// Workaround for gh:#7710
+						Hotpluggable: true, // disk.Hotpluggable
 					},
 				},
 			})
