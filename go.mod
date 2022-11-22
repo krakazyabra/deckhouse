@@ -55,6 +55,9 @@ require (
 	k8s.io/apiserver v0.20.5
 	k8s.io/client-go v0.21.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
+	kubevirt.io/api v0.49.0
+	kubevirt.io/containerized-data-importer-api v1.42.1
+	sigs.k8s.io/controller-runtime v0.8.3
 	sigs.k8s.io/yaml v1.3.0
 )
 
