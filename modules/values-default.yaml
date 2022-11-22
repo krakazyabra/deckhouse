@@ -1,9 +1,11 @@
 # CE Bundle "Default"
+admissionPolicyEngineEnabled: true
 certManagerEnabled: true
 chronyEnabled: true
 ciliumHubbleEnabled: false
 controlPlaneManagerEnabled: true
 dashboardEnabled: true
+deckhouseConfigEnabled: true
 deckhouseEnabled: true
 deckhouseWebEnabled: true
 deschedulerEnabled: true
@@ -15,8 +17,8 @@ kubeProxyEnabled: true
 localPathProvisionerEnabled: true
 logShipperEnabled: true
 monitoringCustomEnabled: true
-monitoringKubernetesControlPlaneEnabled: true
 monitoringDeckhouseEnabled: true
+monitoringKubernetesControlPlaneEnabled: true
 monitoringKubernetesEnabled: true
 monitoringPingEnabled: true
 namespaceConfiguratorEnabled: true
@@ -29,9 +31,9 @@ prometheusCrdEnabled: true
 prometheusEnabled: true
 prometheusMetricsAdapterEnabled: true
 secretCopierEnabled: true
+smokeMiniEnabled: true
 snapshotControllerCrdEnabled: true
 snapshotControllerEnabled: true
-smokeMiniEnabled: true
 terraformManagerEnabled: true
 upmeterEnabled: true
 userAuthnCrdEnabled: true
@@ -39,4 +41,3 @@ userAuthnEnabled: true
 userAuthzEnabled: true
 verticalPodAutoscalerCrdEnabled: true
 verticalPodAutoscalerEnabled: true
-admissionPolicyEngineEnabled: true

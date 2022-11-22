@@ -1,3 +1,4 @@
+x-config-version: 2
 type: object
 properties:
   globalVersion:
@@ -392,7 +393,7 @@ properties:
                     default: '2Gi'
                     oneOf:
                     - type: string
-                      pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+                      pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                     - type: number
                   min:
                     description: |
@@ -400,7 +401,7 @@ properties:
                     default: '256Mi'
                     oneOf:
                     - type: string
-                      pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+                      pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                     - type: number
                   limitRatio:
                     type: number
@@ -427,7 +428,7 @@ properties:
                   memory:
                     oneOf:
                     - type: string
-                      pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+                      pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                     - type: number
                     description: |
                       Memory requests.
@@ -446,7 +447,7 @@ properties:
                   memory:
                     oneOf:
                     - type: string
-                      pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+                      pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                     - type: number
                     description: |
                       Memory limits.
@@ -563,10 +564,6 @@ properties:
             type: string
             x-examples: ["https://example.com/dex/sign_in"]
             description: The URL to redirect the user for authentication (if the authentication service returned a non-200 HTTP response code).
-      password:
-        type: string
-        description: |
-          Deprecated.
       allowedUserGroups:
         type: array
         items:

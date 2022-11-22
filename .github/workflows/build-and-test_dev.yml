@@ -397,11 +397,23 @@ jobs:
           logout: false
       # </template: login_readonly_registry_step>
 
+      # <template: werf_install_step>
+      - name: Install werf CLI
+        uses: werf/actions/install@v1.2
+        with:
+          channel: ${{env.WERF_CHANNEL}}
+      # </template: werf_install_step>
+
+      - name: Set up Go 1.16
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.16
+
       - name: Run go generate
         run: |
-          TESTS_IMAGE_NAME="registry.deckhouse.io/base_images/golang:1.18.5-buster@sha256:eb4b3bd59da4604b0ab27d3837e39dacfba4a48cdd289419a3c49993c0eadba4"
-          docker run -v $(pwd):/deckhouse --tmpfs /deckhouse/.git/worktrees -v ~/go-pkg-cache:/go/pkg -v ~/deckhouse-bin-cache:/deckhouse/bin -w /deckhouse ${TESTS_IMAGE_NAME} sh -c "trap 'chown -R $(id -u):$(id -g) /deckhouse' EXIT; make generate"
-          docker run -v $(pwd):/deckhouse --tmpfs /deckhouse/.git/worktrees -v ~/go-pkg-cache:/go/pkg -v ~/deckhouse-bin-cache:/deckhouse/bin -w /deckhouse/modules/500-upmeter/hooks/smokemini/internal/snapshot ${TESTS_IMAGE_NAME} go generate .
+
+          (cd tools && go generate)
+          (cd modules/500-upmeter/hooks/smokemini/internal/snapshot && go generate)
 
       - name: Check generated code
         run: |
@@ -1405,10 +1417,11 @@ jobs:
         run: |
           # Do not exit on html-proofer error.
           set +e
+          # TODO: Fix this
           docker run --rm -v "${_TMPDIR}/site:/src:ro" klakegg/html-proofer:3.19.1 \
-            --allow-hash-href --check-html --empty-alt-ignore \
+            --allow-hash-href --check-html --empty-alt-ignore --external_only \
             --url-ignore "/localhost/,/https\:\/\/t.me/,/gitlab.com\/profile/,/dash.cloudflare.com\/profile/,/example.com/,/vmware.com/,/.slack.com/,/habr.com/,/flant.ru/,/bcrypt-generator.com/,/candi\/bashible\/bashbooster/,/..\/..\/compare\//,/compare\/ru\//,/compare\/en\//,/\.yml$/,/\.yaml$/,/\.tmpl$/,/\.tpl$/" \
-            --url-swap "https\:\/\/deckhouse.io\/:/,\/ru\/documentation\/$:/doc/ru/,\/ru\/documentation\/v1\/:/doc/ru/,\/ru\/documentation\/latest\/:/doc/ru/,\/en\/documentation\/$:/doc/en/,\/en\/documentation\/v1\/:/doc/en/,\/en\/documentation\/latest\/:/doc/en/,\/docs\/documentation\/images\/:/doc/images/" --http-status-ignore "0,429" ${1}
+            --url-swap "https\:\/\/deckhouse.io\/:/,https\:\/\/deckhouse.ru\/:/,\/documentation\/$:/doc/en/,\/documentation\/v1\/:/doc/en/,\/documentation\/latest\/:/doc/en/,\/en\/documentation\/$:/doc/en/,\/en\/documentation\/v1\/:/doc/en/,\/en\/documentation\/latest\/:/doc/en/,\/docs\/documentation\/images\/:/doc/images/" --http-status-ignore "0,429" ${1}
           # Emulate 'allow_failure: true' from Gitlab. Github has only two state: success and failure.
           exit 0
 

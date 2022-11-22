@@ -59,7 +59,9 @@ var _ = Describe("OpenAPI case tests", func() {
 	}
 	Expect(err).NotTo(HaveOccurred(), "All openapi test cases should be parsed")
 
-	for _, testCases := range allTestCases {
+	for _, item := range allTestCases {
+		// Need copy for proper carrying in test function.
+		testCases := item
 		It(fmt.Sprintf("Openapi test cases should pass in %s", testCases.dir), func() {
 			ExecuteTestCases(testCases)
 		})
@@ -67,7 +69,7 @@ var _ = Describe("OpenAPI case tests", func() {
 })
 
 func ExecuteTestCases(testCases *TestCases) {
-	// Silence addon-operator logger. (Validation, ModuleManager)
+	// Silence addon-operator logger. (Validation, moduleManager)
 	log.SetOutput(ioutil.Discard)
 
 	modulePath, _ := filepath.Split(testCases.dir)

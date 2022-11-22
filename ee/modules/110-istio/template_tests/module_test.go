@@ -22,7 +22,7 @@ func Test(t *testing.T) {
 
 const globalValues = `
 highAvailability: true
-enabledModules: ["operator-prometheus-crd","cert-manager","vertical-pod-autoscaler-crd"]
+enabledModules: ["operator-prometheus-crd","cert-manager","vertical-pod-autoscaler-crd","cni-cilium"]
 modules:
   publicDomainTemplate: "%s.example.com"
   placement:
@@ -71,7 +71,6 @@ const istioValues = `
         password: qqq
     auth:
       externalAuthentication: {}
-      password: qqq
     outboundTrafficPolicyMode: AllowAny
     sidecar:
       includeOutboundIPRanges: ["10.0.0.0/24"]

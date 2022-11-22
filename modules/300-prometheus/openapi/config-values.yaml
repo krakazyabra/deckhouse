@@ -1,3 +1,4 @@
+x-config-version: 2
 type: object
 properties:
   retentionDays:
@@ -51,10 +52,6 @@ properties:
             type: string
             x-examples: ["https://example.com/dex/sign_in"]
             description: The URL to redirect the user for authentication (if the authentication service returned a non-200 HTTP response code).
-      password:
-        type: string
-        description: |
-          Deprecated.
       allowedUserGroups:
         type: array
         items:
@@ -183,7 +180,7 @@ properties:
       maxMemory:
         oneOf:
           - type: string
-            pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+            pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
           - type: number
         x-examples: ["3Mi"]
         description: |
@@ -203,7 +200,7 @@ properties:
       longtermMaxMemory:
         oneOf:
           - type: string
-            pattern: "^[0-9]+(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$"
+            pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|k|Ei|Pi|Ti|Gi|Mi|Ki)?$'
           - type: number
         x-examples: ["4Mi"]
         description: |
@@ -281,7 +278,7 @@ properties:
     description: |
       Deprecated and will be removed. Doesn't affect anything.
       The maximum size (in GiB) that the main Prometheus' volume can automatically resize to.
-    x-doc-deprecated: true      
+    x-doc-deprecated: true
   longtermMaxDiskSizeGigabytes:
     type: integer
     default: 300

@@ -1,6 +1,8 @@
 # CE Bundle "Managed"
+admissionPolicyEngineEnabled: true
 certManagerEnabled: true
 dashboardEnabled: true
+deckhouseConfigEnabled: true
 deckhouseEnabled: true
 deckhouseWebEnabled: true
 deschedulerEnabled: true
@@ -27,4 +29,3 @@ upmeterEnabled: true
 userAuthzEnabled: true
 verticalPodAutoscalerCrdEnabled: true
 verticalPodAutoscalerEnabled: true
-admissionPolicyEngineEnabled: true

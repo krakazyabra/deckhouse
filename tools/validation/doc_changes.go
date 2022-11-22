@@ -43,6 +43,11 @@ func RunDocChangesValidation(info *DiffInfo) (exitCode int) {
 
 		fileName := fileInfo.NewFileName
 
+		if strings.Contains(fileName, "testdata") {
+			msgs.Add(NewSkip(fileName, ""))
+			continue
+		}
+
 		if docFileRe.MatchString(fileName) {
 			msgs.Add(checkDocFile(fileName, info))
 			continue
@@ -65,7 +70,7 @@ func RunDocChangesValidation(info *DiffInfo) (exitCode int) {
 }
 
 var possibleDocRootsRe = regexp.MustCompile(`modules/[^/]+/docs/|docs/(site|documentation)/pages`)
-var docsDirAllowedFileRe = regexp.MustCompile(`modules/[^/]+/docs/(CLUSTER_CONFIGURATION|CONFIGURATION|CR|ISTIO-CR|FAQ|README|USAGE|ADVANCED_USAGE)(_RU)?.md`)
+var docsDirAllowedFileRe = regexp.MustCompile(`modules/[^/]+/docs/(CLUSTER_CONFIGURATION|CONFIGURATION|CR|ISTIO-CR|FAQ|README|USAGE|EXAMPLES|ADVANCED_USAGE)(_RU)?.md`)
 var docsDirFileRe = regexp.MustCompile(`/docs/[^/]+.md`)
 
 func checkDocFile(fName string, diffInfo *DiffInfo) (msg Message) {
@@ -86,6 +91,7 @@ Only following file names are allowed in the module '/docs/' directory:
     FAQ.md
     README.md
     USAGE.md
+    EXAMPLES.md
 		ADVANCED_USAGE.md
 (also their Russian versions ended with '_RU.md')`,
 		)

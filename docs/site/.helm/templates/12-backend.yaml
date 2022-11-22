@@ -32,6 +32,8 @@ spec:
             name: http
             protocol: TCP
           env:
+          - name: VROUTER_DOMAIN_MAP
+            value: {{ .Values.global.domain_map | quote }}
           {{- include "vrouter_envs" . | nindent 10 }}
           livenessProbe:
             httpGet:
@@ -42,14 +44,9 @@ spec:
               path: /health
               port: 8080
           volumeMounts:
-            - name: releasechannels
-              mountPath: /app/releasechannels
             - name: release-channels
               mountPath: /app/release-channels
       volumes:
-        - name: releasechannels
-          configMap:
-            name: releasechannels-data
         - name: release-channels
           configMap:
             name: release-channels-data

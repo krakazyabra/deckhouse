@@ -73,6 +73,17 @@ spec:
           required:
             - spec
           properties:
+            metadata:
+              type: object
+              properties:
+                name:
+                  type: string
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" # In Amazon cloud, AWSMachineClass name can't contain dots.
+                  maxLength: 42 # One of labels assigned by the cloud instance manager contains full node name,
+                                # the same time, kubernetes labels keys and values can't be longer than 63 characters.
+                                # Length of hashes is 21 characters, so we leave 63-21=42 characters.
+                                # Further, validation webhook will check that length of <cluster prefix>-<group node name>
+                                # fits the 42 characters limitation.
             status:
               type: object
               required: []
@@ -231,9 +242,7 @@ spec:
                       description: |
                         The minimum number of instances for the group in each zone.
 
-                        This value is used in the MachineDeployment object and as a lower bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` == `maxPerZone` == 0).
+                        This value is used in the `MachineDeployment` object and as a lower bound in cluster-autoscaler.
                       type: integer
                       minimum: 0
                     maxPerZone:
@@ -241,8 +250,6 @@ spec:
                         The maximum number of instances for the group in each zone.
 
                         This value is used as the upper bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` == `maxPerZone` == 0).
                       type: integer
                       minimum: 0
                     maxUnavailablePerZone:
@@ -259,15 +266,18 @@ spec:
                       minimum: 0
                     standby:
                       description: |
-                        The summary number of overprovisioned Nodes for this NodeGroup in all zones.
+                        The summary number of overprovisioned nodes for this `NodeGroup` all zones.
 
-                        The value can be an absolute number (for example, 2) or a percentage of desired Nodes (for example, 10%).
-                        The absolute number is calculated from percentage of maximum Nodes amount by rounding down.
+                        An overprovisioned node is a cluster node on which resources are reserved that are available at any time for scaling. The presence of such a node allows the cluster autoscaler not to wait for node initialization (which may take several minutes), but to immediately place a load on it.
+
+                        The value can be an absolute number (for example, 2) or a percentage of desired nodes (for example, 10%). If a percentage is specified, the absolute number is calculated based on the percentage of the maximum number of nodes (the [maxPerZone](#nodegroup-v1-spec-cloudinstances-maxperzone) parameter) rounded down, but not less than one.
                       pattern: '^[0-9]+%?$'
                       x-kubernetes-int-or-string: true
                     standbyHolder:
                       description: |
-                        Parameters of the "idle" process (resource consumer) for the prepared instances.
+                        Amount of reserved resources.
+
+                        Used to determine whether to order [overprovisioned nodes](#nodegroup-v1alpha1-spec-cloudinstances-standby).
                       type: object
                       properties:
                         notHeldResources:
@@ -287,7 +297,7 @@ spec:
                                 Describes the amount of memory that will not be held by standby holder on Nodes from this NodeGroup.
 
                                 The value can be an absolute number of bytes (for example, 128974848) as well as a fixed-point number using one of memory suffixes: G, Gi, M, Mi.
-                              pattern: '^[0-9]+(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
+                              pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                               x-kubernetes-int-or-string: true
                     classReference:
                       description: |
@@ -674,6 +684,17 @@ spec:
           required:
             - spec
           properties:
+            metadata:
+              type: object
+              properties:
+                name:
+                  type: string
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" # In Amazon cloud, AWSMachineClass name can't contain dots.
+                  maxLength: 42 # One of labels assigned by the cloud instance manager contains full node name,
+                                # the same time, kubernetes labels keys and values can't be longer than 63 characters.
+                                # Length of hashes is 21 characters, so we leave 63-21=42 characters.
+                                # Further, validation webhook will check that length of <cluster prefix>-<group node name>
+                                # fits the 42 characters limitation.
             status:
               type: object
               required: []
@@ -855,9 +876,7 @@ spec:
                       description: |
                         The minimum number of instances for the group in each zone.
 
-                        This value is used in the MachineDeployment object and as a lower bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` == `maxPerZone` == 0).
+                        This value is used in the `MachineDeployment` object and as a lower bound in cluster-autoscaler.
                       type: integer
                       minimum: 0
                     maxPerZone:
@@ -865,8 +884,6 @@ spec:
                         The maximum number of instances for the group in each zone.
 
                         This value is used as the upper bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` == `maxPerZone` == 0).
                       type: integer
                       minimum: 0
                     maxUnavailablePerZone:
@@ -883,15 +900,18 @@ spec:
                       minimum: 0
                     standby:
                       description: |
-                        The summary number of overprovisioned Nodes for this NodeGroup in all zones.
+                        The summary number of overprovisioned nodes for this `NodeGroup` in all [zones](#nodegroup-v1alpha2-spec-cloudinstances-zones).
 
-                        The value can be an absolute number (for example, 2) or a percentage of desired Nodes (for example, 10%).
-                        The absolute number is calculated from percentage of maximum Nodes amount by rounding down.
+                        An overprovisioned node is a cluster node on which resources are reserved that are available at any time for scaling. The presence of such a node allows the cluster autoscaler not to wait for node initialization (which may take several minutes), but to immediately place a load on it.
+
+                        The value can be an absolute number (for example, 2) or a percentage of desired nodes (for example, 10%). If a percentage is specified, the absolute number is calculated based on the percentage of the maximum number of nodes (the [maxPerZone](#nodegroup-v1alpha2-spec-cloudinstances-maxperzone) parameter) rounded down, but not less than one.
                       pattern: '^[0-9]+%?$'
                       x-kubernetes-int-or-string: true
                     standbyHolder:
                       description: |
-                        Parameters of the "idle" process (resource consumer) for the prepared instances.
+                        Amount of reserved resources.
+
+                        Used to determine whether to order [overprovisioned nodes](#nodegroup-v1alpha2-spec-cloudinstances-standby).
                       type: object
                       properties:
                         notHeldResources:
@@ -911,7 +931,7 @@ spec:
                                 Describes the amount of memory that will not be held by standby holder on Nodes from this NodeGroup.
 
                                 The value can be an absolute number of bytes (for example, 128974848) as well as a fixed-point number using one of memory suffixes: G, Gi, M, Mi.
-                              pattern: '^[0-9]+(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
+                              pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                               x-kubernetes-int-or-string: true
                     classReference:
                       description: |
@@ -1271,6 +1291,17 @@ spec:
           required:
             - spec
           properties:
+            metadata:
+              type: object
+              properties:
+                name:
+                  type: string
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" # In Amazon cloud, AWSMachineClass name can't contain dots.
+                  maxLength: 42 # One of labels assigned by the cloud instance manager contains full node name,
+                                # the same time, kubernetes labels keys and values can't be longer than 63 characters.
+                                # Length of hashes is 21 characters, so we leave 63-21=42 characters.
+                                # Further, validation webhook will check that length of <cluster prefix>-<group node name>
+                                # fits the 42 characters limitation.
             status:
               type: object
               required: []
@@ -1454,9 +1485,7 @@ spec:
                       description: |
                         The minimum number of instances for the group in each zone.
 
-                        This value is used in the MachineDeployment object and as a lower bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` == `maxPerZone` == 0).
+                        This value is used in the `MachineDeployment` object and as a lower bound in cluster-autoscaler.
                       type: integer
                       minimum: 0
                     maxPerZone:
@@ -1464,8 +1493,6 @@ spec:
                         The maximum number of instances for the group in each zone.
 
                         This value is used as the upper bound in cluster-autoscaler.
-
-                        > **Caution!** The minimum number of instances may range from one to `maxPerZone` (0 < `minPerZone` <= `maxPerZone`), or `minPerZone` and `maxPerZone` may both be equal to zero (`minPerZone` = `maxPerZone` = 0).
                       type: integer
                       minimum: 0
                     priority:
@@ -1490,19 +1517,33 @@ spec:
                       minimum: 0
                     standby:
                       description: |
-                        The summary number of overprovisioned Nodes for this NodeGroup in all zones.
+                        The summary number of overprovisioned nodes for this `NodeGroup` in all [zones](#nodegroup-v1-spec-cloudinstances-zones).
 
-                        The value can be an absolute number (for example, 2) or a percentage of desired Nodes (for example, 10%).
-                        The absolute number is calculated from percentage of maximum Nodes amount by rounding down.
+                        An overprovisioned node is a cluster node on which resources are reserved that are available at any time for scaling. The presence of such a node allows the cluster autoscaler not to wait for node initialization (which may take several minutes), but to immediately place a load on it.
+
+                        The value can be an absolute number (for example, 2) or a percentage of desired nodes (for example, 10%). If a percentage is specified, the absolute number is calculated based on the percentage of the maximum number of nodes (the [maxPerZone](#nodegroup-v1-spec-cloudinstances-maxperzone) parameter) rounded down, but not less than one.
                       pattern: '^[0-9]+%?$'
                       x-kubernetes-int-or-string: true
                     standbyHolder:
                       description: |
-                        Parameters of the "idle" process (resource consumer) for the prepared instances.
+                        Amount of reserved resources.
+
+                        Used to determine whether to order [overprovisioned nodes](#nodegroup-v1-spec-cloudinstances-standby).
                       type: object
                       properties:
-                        notHeldResources:
+                        overprovisioningRate:
+                          type: integer
+                          minimum: 1
+                          maximum: 80
+                          x-doc-default: 50
                           description: |
+                            Percentage of reserved resources calculated from the capacity of a node of a `NodeGroup`.
+                        notHeldResources:
+                          deprecated: true
+                          x-doc-deprecated: true
+                          description: |
+                            Deprecated: the parameter is no longer used. Use the `overprovisioningRate` parameter.
+
                             Describes the resources that will not be held (consumed) by the standby holder.
                           type: object
                           properties:
@@ -1518,7 +1559,7 @@ spec:
                                 Describes the amount of memory that will not be held by standby holder on Nodes from this NodeGroup.
 
                                 The value can be an absolute number of bytes (for example, 128974848) as well as a fixed-point number using one of memory suffixes: G, Gi, M, Mi.
-                              pattern: '^[0-9]+(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
+                              pattern: '^[0-9]+(\.[0-9]+)?(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$'
                               x-kubernetes-int-or-string: true
                     classReference:
                       description: |
