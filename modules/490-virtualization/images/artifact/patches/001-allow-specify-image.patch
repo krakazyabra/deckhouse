@@ -100,7 +100,7 @@ index b6e9426d1..dc21a3d52 100644
  				Args: []string{
  					"node-labeller.sh",
 diff --git a/pkg/virt-operator/resource/generate/components/deployments.go b/pkg/virt-operator/resource/generate/components/deployments.go
-index b5176018d..59ae766ec 100644
+index 9af531287..3dccb10d6 100644
 --- a/pkg/virt-operator/resource/generate/components/deployments.go
 +++ b/pkg/virt-operator/resource/generate/components/deployments.go
 @@ -20,6 +20,7 @@ package components
@@ -111,7 +111,7 @@ index b5176018d..59ae766ec 100644
  	"path"
  	"strings"
  
-@@ -151,8 +152,6 @@ func NewExportProxyService(namespace string) *corev1.Service {
+@@ -152,8 +153,6 @@ func NewExportProxyService(namespace string) *corev1.Service {
  
  func newPodTemplateSpec(podName string, imageName string, repository string, version string, productName string, productVersion string, productComponent string, pullPolicy corev1.PullPolicy, podAffinity *corev1.Affinity, envVars *[]corev1.EnvVar) (*corev1.PodTemplateSpec, error) {
  
@@ -120,7 +120,7 @@ index b5176018d..59ae766ec 100644
  	podTemplateSpec := &corev1.PodTemplateSpec{
  		ObjectMeta: metav1.ObjectMeta{
  			Labels: map[string]string{
-@@ -168,7 +167,7 @@ func newPodTemplateSpec(podName string, imageName string, repository string, ver
+@@ -169,7 +168,7 @@ func newPodTemplateSpec(podName string, imageName string, repository string, ver
  			Containers: []corev1.Container{
  				{
  					Name:            podName,
@@ -129,7 +129,7 @@ index b5176018d..59ae766ec 100644
  					ImagePullPolicy: pullPolicy,
  				},
  			},
-@@ -305,7 +304,7 @@ func newPodAntiAffinity(key, topologyKey string, operator metav1.LabelSelectorOp
+@@ -306,7 +305,7 @@ func newPodAntiAffinity(key, topologyKey string, operator metav1.LabelSelectorOp
  func NewApiServerDeployment(namespace string, repository string, imagePrefix string, version string, productName string, productVersion string, productComponent string, pullPolicy corev1.PullPolicy, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
  	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtAPIName})
  	deploymentName := VirtAPIName
@@ -138,7 +138,7 @@ index b5176018d..59ae766ec 100644
  	env := operatorutil.NewEnvVarMap(extraEnv)
  	deployment, err := newBaseDeployment(deploymentName, imageName, namespace, repository, version, productName, productVersion, productComponent, pullPolicy, podAntiAffinity, env)
  	if err != nil {
-@@ -375,7 +374,7 @@ func NewApiServerDeployment(namespace string, repository string, imagePrefix str
+@@ -384,7 +383,7 @@ func NewApiServerDeployment(namespace string, repository string, imagePrefix str
  func NewControllerDeployment(namespace string, repository string, imagePrefix string, controllerVersion string, launcherVersion string, exportServerVersion string, productName string, productVersion string, productComponent string, pullPolicy corev1.PullPolicy, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
  	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtControllerName})
  	deploymentName := VirtControllerName
@@ -147,8 +147,8 @@ index b5176018d..59ae766ec 100644
  	env := operatorutil.NewEnvVarMap(extraEnv)
  	deployment, err := newBaseDeployment(deploymentName, imageName, namespace, repository, controllerVersion, productName, productVersion, productComponent, pullPolicy, podAntiAffinity, env)
  	if err != nil {
-@@ -388,18 +387,15 @@ func NewControllerDeployment(namespace string, repository string, imagePrefix st
- 		RunAsNonRoot: boolPtr(true),
+@@ -398,18 +397,15 @@ func NewControllerDeployment(namespace string, repository string, imagePrefix st
+ 		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
  	}
  
 -	launcherVersion = AddVersionSeparatorPrefix(launcherVersion)
@@ -168,7 +168,7 @@ index b5176018d..59ae766ec 100644
  		portName,
  		"8443",
  		"-v",
-@@ -464,8 +460,7 @@ func NewOperatorDeployment(namespace string, repository string, imagePrefix stri
+@@ -481,8 +477,7 @@ func NewOperatorDeployment(namespace string, repository string, imagePrefix stri
  
  	const kubernetesOSLinux = "linux"
  	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtOperatorName})
@@ -178,7 +178,7 @@ index b5176018d..59ae766ec 100644
  
  	deployment := &appsv1.Deployment{
  		TypeMeta: metav1.TypeMeta{
-@@ -627,7 +622,7 @@ func NewOperatorDeployment(namespace string, repository string, imagePrefix stri
+@@ -652,7 +647,7 @@ func NewOperatorDeployment(namespace string, repository string, imagePrefix stri
  func NewExportProxyDeployment(namespace string, repository string, imagePrefix string, version string, productName string, productVersion string, productComponent string, pullPolicy corev1.PullPolicy, verbosity string, extraEnv map[string]string) (*appsv1.Deployment, error) {
  	podAntiAffinity := newPodAntiAffinity(kubevirtLabelKey, kubernetesHostnameTopologyKey, metav1.LabelSelectorOpIn, []string{VirtAPIName})
  	deploymentName := VirtExportProxyName

@@ -1,5 +1,5 @@
 diff --git a/pkg/virt-handler/cgroup/BUILD.bazel b/pkg/virt-handler/cgroup/BUILD.bazel
-index 54e735c6c40..6480a1ecc15 100644
+index 54e735c6c..6480a1ecc 100644
 --- a/pkg/virt-handler/cgroup/BUILD.bazel
 +++ b/pkg/virt-handler/cgroup/BUILD.bazel
 @@ -12,6 +12,7 @@ go_library(
@@ -19,7 +19,7 @@ index 54e735c6c40..6480a1ecc15 100644
  )
  
 diff --git a/pkg/virt-handler/cgroup/cgroup.go b/pkg/virt-handler/cgroup/cgroup.go
-index b0b28a046f2..5399326717f 100644
+index e5a27bcda..2d288bcc0 100644
 --- a/pkg/virt-handler/cgroup/cgroup.go
 +++ b/pkg/virt-handler/cgroup/cgroup.go
 @@ -30,6 +30,7 @@ import (
@@ -30,7 +30,7 @@ index b0b28a046f2..5399326717f 100644
  
  	v1 "kubevirt.io/api/core/v1"
  
-@@ -91,7 +92,7 @@ func managerPath(taskPath string) string {
+@@ -65,7 +66,7 @@ type runcManager interface {
  
  // NewManagerFromPid initializes a new cgroup manager from VMI's pid.
  // The pid is expected to VMI's pid from the host's viewpoint.
@@ -39,7 +39,7 @@ index b0b28a046f2..5399326717f 100644
  	const isRootless = false
  	var version CgroupVersion
  
-@@ -102,9 +103,11 @@ func NewManagerFromPid(pid int) (manager Manager, err error) {
+@@ -76,9 +77,11 @@ func NewManagerFromPid(pid int) (manager Manager, err error) {
  	}
  
  	config := &configs.Cgroup{
@@ -54,7 +54,7 @@ index b0b28a046f2..5399326717f 100644
  	}
  
  	if runc_cgroups.IsCgroup2UnifiedMode() {
-@@ -140,7 +143,12 @@ func NewManagerFromVM(vmi *v1.VirtualMachineInstance) (Manager, error) {
+@@ -112,7 +115,12 @@ func NewManagerFromVM(vmi *v1.VirtualMachineInstance) (Manager, error) {
  		return nil, err
  	}
  
@@ -69,7 +69,7 @@ index b0b28a046f2..5399326717f 100644
  
  // GetGlobalCpuSetPath returns the CPU set of the main cgroup slice
 diff --git a/pkg/virt-handler/cgroup/cgroup_test.go b/pkg/virt-handler/cgroup/cgroup_test.go
-index 3f982b484e2..7ac19d33ebe 100644
+index 3f982b484..7ac19d33e 100644
 --- a/pkg/virt-handler/cgroup/cgroup_test.go
 +++ b/pkg/virt-handler/cgroup/cgroup_test.go
 @@ -43,7 +43,7 @@ var _ = Describe("cgroup manager", func() {
@@ -96,10 +96,10 @@ index 3f982b484e2..7ac19d33ebe 100644
  		Entry("for v1", V1),
  		Entry("for v2", V2),
 diff --git a/pkg/virt-handler/cgroup/cgroup_v2_manager.go b/pkg/virt-handler/cgroup/cgroup_v2_manager.go
-index 4b8bf63f0c8..989c004e8e6 100644
+index 36e35fafc..dd86d192f 100644
 --- a/pkg/virt-handler/cgroup/cgroup_v2_manager.go
 +++ b/pkg/virt-handler/cgroup/cgroup_v2_manager.go
-@@ -22,6 +22,7 @@ type v2Manager struct {
+@@ -13,6 +13,7 @@ type v2Manager struct {
  	runc_cgroups.Manager
  	dirPath        string
  	isRootless     bool
@@ -107,7 +107,7 @@ index 4b8bf63f0c8..989c004e8e6 100644
  	execVirtChroot execVirtChrootFunc
  }
  
-@@ -31,14 +32,20 @@ func newV2Manager(config *runc_configs.Cgroup, dirPath string) (Manager, error)
+@@ -22,14 +23,20 @@ func newV2Manager(config *runc_configs.Cgroup, dirPath string) (Manager, error)
  		return nil, err
  	}
  
@@ -130,7 +130,7 @@ index 4b8bf63f0c8..989c004e8e6 100644
  		execVirtChroot,
  	}
  
-@@ -55,6 +62,7 @@ func (v *v2Manager) Set(r *runc_configs.Resources) error {
+@@ -46,6 +53,7 @@ func (v *v2Manager) Set(r *runc_configs.Resources) error {
  
  	//Add default rules
  	resourcesToSet.Devices = append(resourcesToSet.Devices, GenerateDefaultDeviceRules()...)
@@ -139,20 +139,18 @@ index 4b8bf63f0c8..989c004e8e6 100644
  	rulesToSet, err := addCurrentRules(rulesPerPid[v.dirPath], resourcesToSet.Devices)
  	if err != nil {
 diff --git a/pkg/virt-handler/cgroup/util.go b/pkg/virt-handler/cgroup/util.go
-index f088dc4ceeb..a2d37bb9899 100644
+index 8901b4742..823d20fd7 100644
 --- a/pkg/virt-handler/cgroup/util.go
 +++ b/pkg/virt-handler/cgroup/util.go
-@@ -4,21 +4,28 @@ import (
- 	"bufio"
+@@ -3,17 +3,26 @@ package cgroup
+ import (
  	"encoding/base64"
  	"encoding/json"
 +	"errors"
  	"fmt"
- 	"os"
++	"os"
  	"os/exec"
- 	"path/filepath"
- 	"strconv"
- 	"strings"
++	"path/filepath"
 +	"syscall"
  
  	"github.com/opencontainers/runc/libcontainer/cgroups"
@@ -171,7 +169,7 @@ index f088dc4ceeb..a2d37bb9899 100644
  )
  
  type CgroupVersion string
-@@ -84,6 +91,56 @@ func addCurrentRules(currentRules, newRules []*devices.Rule) ([]*devices.Rule, e
+@@ -79,6 +88,56 @@ func addCurrentRules(currentRules, newRules []*devices.Rule) ([]*devices.Rule, e
  	return newRules, nil
  }
  
@@ -229,10 +227,10 @@ index f088dc4ceeb..a2d37bb9899 100644
  	if len(defaultDeviceRules) > 0 {
  		// To avoid re-computing default device rules
 diff --git a/tests/storage/hotplug.go b/tests/storage/hotplug.go
-index f50048b4a70..86deb1067ba 100644
+index debc3efcd..b85f86248 100644
 --- a/tests/storage/hotplug.go
 +++ b/tests/storage/hotplug.go
-@@ -551,6 +551,58 @@ var _ = SIGDescribe("Hotplug", func() {
+@@ -546,6 +546,58 @@ var _ = SIGDescribe("Hotplug", func() {
  		)
  	})
  
