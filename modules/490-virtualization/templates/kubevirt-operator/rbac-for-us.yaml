@@ -396,6 +396,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+- apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
@@ -420,6 +429,7 @@ rules:
   - delete
   - update
   - create
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -721,6 +731,13 @@ rules:
   - list
   - watch
 - apiGroups:
+  - kubevirt.io
+  resources:
+  - kubevirts
+  verbs:
+  - list
+  - watch
+- apiGroups:
   - ""
   resourceNames:
   - kubevirt-export-ca
@@ -743,6 +760,7 @@ rules:
   resources:
   - virtualmachineinstances/console
   - virtualmachineinstances/vnc
+  - virtualmachineinstances/vnc/screenshot
   - virtualmachineinstances/guestosinfo
   - virtualmachineinstances/filesystemlist
   - virtualmachineinstances/userlist
@@ -847,6 +865,7 @@ rules:
   resources:
   - virtualmachineinstances/console
   - virtualmachineinstances/vnc
+  - virtualmachineinstances/vnc/screenshot
   - virtualmachineinstances/guestosinfo
   - virtualmachineinstances/filesystemlist
   - virtualmachineinstances/userlist
