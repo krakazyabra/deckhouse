@@ -130,6 +130,7 @@ rules:
   - create
   - update
   - delete
+  - deletecollection
 - apiGroups:
   - ""
   resources:
@@ -228,6 +229,12 @@ rules:
   verbs:
   - list
   - watch
+- apiGroups:
+  - kubevirt.io
+  resources:
+  - virtualmachines/finalizers
+  verbs:
+  - update
 - apiGroups:
   - ""
   resources:
