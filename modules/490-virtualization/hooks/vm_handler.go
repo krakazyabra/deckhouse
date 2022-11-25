@@ -119,7 +119,10 @@ func applyVirtualMachineDisksFilter(obj *unstructured.Unstructured) (go_hook.Fil
 // handleVMs
 //
 // synopsis:
-//   TODO
+//   This hook converts Deckhouse VirtualMachines (top-level abstraction) to KubeVirt VirtualMachines.
+//   Every Deckhouse VirtualMachine represents KubeVirt VirtualMachne with attached DataVolumes.
+//   For the boot disk this hook creates VirtualMachineDisk to provision DataVolume out of specific image source.
+
 func handleVMs(input *go_hook.HookInput) error {
 	// KubeVirt manages it's own CRDs, so we need to wait for them before starting the watch
 	if vmHandlerHookConfig.Kubernetes[0].Kind == "" {

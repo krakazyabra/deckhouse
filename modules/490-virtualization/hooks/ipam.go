@@ -103,10 +103,16 @@ func applyVirtualMachineFilter(obj *unstructured.Unstructured) (go_hook.FilterRe
 	}, nil
 }
 
-// handleDisks
+// handleVMsAndIPs
 //
 // synopsis:
-//   TODO
+//   This hook performs IPAM (IP Address Management) for VirtualMachines.
+//   It takes free IP addresses from `virtualization.vmCIDRs` and assigning them to Virtual Machines.
+//   Every VM required static IP address obtans static IP lease with specific IP address,
+//   otherwise the next free IP address assigned to the VM.
+//   Additionaly this hook performs the check to make sure that requested IP address is not
+// 	 assigned to other Virtual Machine.
+
 func handleVMsAndIPs(input *go_hook.HookInput) error {
 	ipSnap := input.Snapshots[ipsSnapshot]
 	vmSnap := input.Snapshots[vmsSnapshot]

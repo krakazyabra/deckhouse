@@ -204,7 +204,9 @@ func applyDataVolumeFilter(obj *unstructured.Unstructured) (go_hook.FilterResult
 // handleVirtualMachineDisks
 //
 // synopsis:
-//   TODO
+//   This hook converts Deckhouse VirtualMachineDisks (top-level abstraction) to CDI DataVolumes.
+//   Every Deckhouse VirtualMachineDisk represents DataVolume with specified data source.
+
 func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 	// CDI manages it's own CRDs, so we need to wait for them before starting the watch
 	if diskHandlerHookConfig.Kubernetes[0].Kind == "" {
