@@ -1,5 +1,5 @@
 {{- define "kubevirt_images" -}}
-- name: OPERATOR_IMAGE
+- name: VIRT_OPERATOR_IMAGE
   value: {{ include "helm_lib_module_image" (list . "virtOperator") }}
 - name: VIRT_API_IMAGE
   value: {{ include "helm_lib_module_image" (list . "virtApi") }}

@@ -9,7 +9,7 @@ to images bundle target.
 
 Ability to specify component images using environment variables
 
-- https://github.com/kubevirt/kubevirt/pull/8390
+- https://github.com/kubevirt/kubevirt/pull/8673
 
 #### `002-deckhouse-registry.patch`
 
