@@ -2,31 +2,19 @@
 title: "Модуль virtualization: примеры конфигурации"
 ---
 
-## Создание DiskType
+## Настройка хранения образов
 
-DiskType - необходимая сущность для описания типа создаваемых дисков.  
-Разные DiskTypes могут использоваться для создания дисков с различными характеристиками, к примеру: `slow`, `fast` и т.д.
-
-При использовании linstor, укажите следующие параметры:
+Для наиболее оптимального хранения образов и дисков виртуальных машин, рекуомендуется использовать блочные тома с возможностью конкуретного доступа (режим `ReadWriteMany`).
+Следующие опции можно задать в StorageClass, чтобы модуль виртуализации создавал тома с оптимальными параметрами:
 
 ```yaml
-apiVersion: deckhouse.io/v1alpha1
-kind: DiskType
-metadata:
-  name: linstor-slow
-spec:
-  accessModes: [ "ReadWriteMany" ]
-  volumeMode: Block
-  storageClassName: linstor-data-r2
+virtualization.deckhouse.io/volumeMode: Block
+virtualization.deckhouse.io/accessModes: ReadWriteMany
 ```
 
-Где `storageClassName` - это желаемый StorageClass.
+При использовании linstor в качестве хранилища, автоматически созданные StorageClasses уже содержат данные опции.
 
-Необходимо создать хотя бы один DiskType на весь кластер. При желании его можно назначить DiskType по умолчанию:
-
-```bash
-kubectl annotate disktype.deckhouse.io linstor-slow deckhouse.io/is-default-type=true
-```
+> **Внимание:** не все хранилища поддерживают данные режимы.
 
 ## Получение списка доступных имаджей
 
@@ -69,11 +57,17 @@ spec:
   userName: admin
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
-    image:
+    source:
+      kind: ClusterVirtualMachineImage
       name: ubuntu-20.04
-      size: 10Gi
-      type: linstor-slow
+    size: 10Gi
+    storageClassName: linstor-slow
+    ephemeral: true
 ```
+
+В качестве источника для bootDisk, можно указать и существующий диск виртуальной машины. В этом случае он будет подключен к ней напрямую без выполнения операции клонирования.
+
+Параметр `ephemeral` позволяет определить, должен ли диск быть удалён после удаления виртуальной машины.
 
 ## Назначение статического IP-адреса
 
@@ -94,10 +88,12 @@ spec:
   userName: admin
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
-    image:
+    source:
+      kind: ClusterVirtualMachineImage
       name: ubuntu-20.04
-      size: 10Gi
-      type: linstor-slow
+    size: 10Gi
+    storageClassName: linstor-slow
+    ephemeral: true
 ```
 
 Желаемый IP-адрес должен находиться в пределах одного из `vmCIDR` определённого в конфигурации модуля и не быть в использовании какой-либо другой виртуальной машины.
@@ -105,23 +101,24 @@ spec:
 После удаления VM, статический IP-адрес остаётся зарезервированным в неймспейсе, посмотреть список всех выданных IP-адресов, можно следующим образом:
 
 ```bash
-kubectl get ipaddressleases.deckhouse.io
+kubectl get vmip
 ```
 
 пример вывода команды:
 ```bash
-# kubectl get ipaddressleases.deckhouse.io
-NAME            STATIC   VM     AGE
-ip-10-10-10-1   false    vm5    29m
-ip-10-10-10-2   false           34m
-ip-10-10-10-4   true     vm4    21m
-ip-10-10-10-8   true            10m
+# kubectl get vmip
+NAME             STATIC   VM
+ip-10-10-10-0    true
+ip-10-10-10-1             vm1
+ip-10-10-10-2    true
+ip-10-10-10-88   true
+ip-10-10-10-99   true
 ```
 
 Для того чтобы освободить адрес, удалите ресурс `IPAddressLease`:
 
 ```bash
-kubectl delete ipaddressleases.deckhouse.io ip-10-10-10-8
+kubectl delete vmip ip-10-10-10-88
 ```
 
 ## Создание дисков для хранения персистентных данных
@@ -130,15 +127,23 @@ kubectl delete ipaddressleases.deckhouse.io ip-10-10-10-8
 
 ```yaml
 apiVersion: deckhouse.io/v1alpha1
-kind: Disk
+kind: VirtualMachineDisk
 metadata:
   name: mydata
 spec:
-  type: linstor-slow
+  storageClassName: linstor-slow
   size: 10Gi
 ```
 
-Подключение дополнительных дисков выполняется с помощью параметра `disks`:
+Имеется возможность создать диск из существующего образа, для этого достаточно указать source:
+
+```yaml
+source:
+  kind: ClusterVirtualMachineImage
+  name: centos-7
+```
+
+Подключение дополнительных дисков выполняется с помощью параметра `diskAttachments`:
 
 ```yaml
 apiVersion: deckhouse.io/v1alpha1
@@ -148,21 +153,23 @@ metadata:
   namespace: default
 spec:
   running: true
+  staticIPAddress: 10.10.10.8
   resources:
     memory: 512M
     cpu: "1"
   userName: admin
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
-    image:
+    source:
+      kind: ClusterVirtualMachineImage
       name: ubuntu-20.04
-      size: 10Gi
-      type: linstor-slow
-  disks:
+    size: 10Gi
+    storageClassName: linstor-slow
+    ephemeral: true
+  diskAttachments:
   - name: mydata
     bus: virtio
 ```
-
 
 ## Использование cloud-init
 
@@ -191,7 +198,7 @@ spec:
       chpasswd: { expire: False }
 ```
 
-При желании конфигцрацию cloud-init, можно положить в секрет и передать виртуальной машине следулющим образом:
+Конфигцрацию cloud-init, можно также положить в секрет и передать виртуальной машине следулющим образом:
 
 ```yaml
   cloudInit:
