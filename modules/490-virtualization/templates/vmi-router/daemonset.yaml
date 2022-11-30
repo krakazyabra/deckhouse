@@ -58,8 +58,8 @@ spec:
           {{- range .Values.virtualization.vmCIDRs }}
           - --cidr={{ . }}
           {{- end }}
-          {{- with .Values.virtualization.rotueLocal }}
-          --route-local
+          {{- with .Values.virtualization.routeLocal }}
+          - --route-local
           {{- end }}
           {{- include "helm_lib_module_container_security_context_privileged" . | nindent 10 }}
           image: {{ include "helm_lib_module_image" (list . "vmiRouter") }}

@@ -438,17 +438,17 @@ func (c VMIRouterController) NewRoute(r CachedRoute) (netlink.Route, error) {
 
 	//route.Scope = netlink.SCOPE_UNIVERSE
 
-	if c.NodeName != r.NodeName {
-		// fmt.Printf("ip route add %s/32 via %s\n", vmiIP, nodeIP)
-		route.Gw = net.ParseIP(r.NodeIP)
-		if route.Gw == nil {
-			return route, fmt.Errorf("Invalid node address %s\n" + r.NodeIP)
-		}
-	} else {
+	if c.RouteLocal || c.NodeName == r.NodeName {
 		// fmt.Printf("ip route add %s/32 dev cilium_host\n", vmiIP)
 		route.LinkIndex = c.HostIfaceIndex
 		if err != nil {
 			return route, err
+		}
+	} else {
+		// fmt.Printf("ip route add %s/32 via %s\n", vmiIP, nodeIP)
+		route.Gw = net.ParseIP(r.NodeIP)
+		if route.Gw == nil {
+			return route, fmt.Errorf("Invalid node address %s\n" + r.NodeIP)
 		}
 	}
 	return route, nil
