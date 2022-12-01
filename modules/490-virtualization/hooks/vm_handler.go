@@ -164,18 +164,14 @@ func handleVMs(input *go_hook.HookInput) error {
 		// Handle boot disk
 		var bootVirtualMachineDiskName string
 		if d8vm.Spec.BootDisk != nil {
+			bootVirtualMachineDiskName := d8vm.Spec.BootDisk.Name
 			var disk *VirtualMachineDiskSnapshot
 
 			switch d8vm.Spec.BootDisk.Source.Kind {
-			case "VirtualMachineDisk":
-				bootVirtualMachineDiskName = d8vm.Spec.BootDisk.Source.Name
-				disk = getDisk(&diskSnap, d8vm.Namespace, d8vm.Spec.BootDisk.Source.Name)
-				if disk == nil {
-					input.LogEntry.Warnln("Disk not found")
-				}
-
 			case "ClusterVirtualMachineImage":
-				bootVirtualMachineDiskName = d8vm.Name + "-boot"
+				if bootVirtualMachineDiskName != "" {
+					bootVirtualMachineDiskName = d8vm.Name + "-boot"
+				}
 				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
 
 				if disk != nil {
@@ -206,6 +202,9 @@ func handleVMs(input *go_hook.HookInput) error {
 					}
 					input.PatchCollector.Create(disk)
 				}
+			case "VirtualMachineImage":
+				// TODO handle namespaced VirtualMachineImage
+				return fmt.Errorf("Not implemented")
 
 			default:
 				input.LogEntry.Warnln("Unknown source kind")

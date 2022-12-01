@@ -49,6 +49,8 @@ spec:
                   ephemeral:
                     description: Should boot disk be removed with VM
                     type: boolean
+                  name:
+                    type: string
                   size:
                     anyOf:
                     - type: integer

@@ -374,7 +374,7 @@ func resolveDataVolumeSource(diskSnap, clusterImageSnap, dataVolumeSnap *[]go_ho
 		return nil, fmt.Errorf("Neither source and remote specified")
 	case "VirtualMachineImage":
 		// TODO handle namespaced VirtualMachineImage
-		return nil, fmt.Errorf("Neither source and remote specified")
+		return nil, fmt.Errorf("Not implemented")
 	}
 	return nil, fmt.Errorf("Unknown type of source")
 }

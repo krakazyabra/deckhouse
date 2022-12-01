@@ -49,6 +49,7 @@ type VirtualMachineStatus struct {
 // Represents the source of a boot disk
 // Only one of its members may be specified.
 type BootDisk struct {
+	Name   string                            `json:"name,omitempty"`
 	Source *corev1.TypedLocalObjectReference `json:"source"`
 	// Type represents the type for newly created disk
 	StorageClassName string `json:"storageClassName,omitempty"`
