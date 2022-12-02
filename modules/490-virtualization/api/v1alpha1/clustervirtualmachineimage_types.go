@@ -39,8 +39,7 @@ type ClusterVirtualMachineImageStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
-//+kubebuilder:resource:shortName={"cvmi","cvmimage","cvmimages"}
+//+kubebuilder:resource:scope=Cluster,shortName={"cvmi","cvmimage","cvmimages"}
 
 // ClusterVirtualMachineImage is the Schema for the clustervirtualmachineimages API
 type ClusterVirtualMachineImage struct {
