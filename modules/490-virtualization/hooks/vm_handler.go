@@ -169,7 +169,7 @@ func handleVMs(input *go_hook.HookInput) error {
 
 			switch d8vm.Spec.BootDisk.Source.Kind {
 			case "ClusterVirtualMachineImage":
-				if bootVirtualMachineDiskName != "" {
+				if bootVirtualMachineDiskName == "" {
 					bootVirtualMachineDiskName = d8vm.Name + "-boot"
 				}
 				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
