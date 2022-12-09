@@ -168,7 +168,7 @@ func applyVirtualMachineDiskFilter(obj *unstructured.Unstructured) (go_hook.Filt
 		StorageClassName: disk.Spec.StorageClassName,
 		Size:             disk.Spec.Size,
 		Source:           disk.Spec.Source,
-		Ephemeral:        disk.Spec.Ephemeral,
+		Ephemeral:        disk.Status.Ephemeral,
 	}, nil
 }
 

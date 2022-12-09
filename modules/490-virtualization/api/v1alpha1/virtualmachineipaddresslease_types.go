@@ -17,25 +17,26 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // VirtualMachineIPAddressLeaseSpec defines the desired state of VirtualMachineIPAddressLease
 type VirtualMachineIPAddressLeaseSpec struct {
 	// Static represents the static claim
-	Static bool   `json:"static,omitempty"`
-	VMName string `json:"vmName,omitempty"`
+	ClaimRef *corev1.ObjectReference `json:"claimRef,omitempty"`
 }
 
 // VirtualMachineIPAddressLeaseStatus defines the observed state of VirtualMachineIPAddressLease
 type VirtualMachineIPAddressLeaseStatus struct {
+	Phase string `json:"phase,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:JSONPath=".spec.static",name=Static,type=string
 //+kubebuilder:printcolumn:JSONPath=".spec.vmName",name=VM,type=string
-//+kubebuilder:resource:shortName={"vmip","vmips"}
+//+kubebuilder:resource:scope=Cluster,shortName={"vmipl","vmipls"}
 
 // VirtualMachineIPAddressLease is the Schema for the virtualmachineipaddressleases API
 type VirtualMachineIPAddressLease struct {

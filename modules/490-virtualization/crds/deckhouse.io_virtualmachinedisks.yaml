@@ -20,7 +20,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.ephemeral
+    - jsonPath: .metadata.ownerReferences[?(@.name)] true
       name: Ephemeral
       type: string
     - jsonPath: .spec.vmName
@@ -47,8 +47,6 @@ spec:
           spec:
             description: VirtualMachineDiskSpec defines the desired state of VirtualMachineDisk
             properties:
-              ephemeral:
-                type: boolean
               size:
                 anyOf:
                 - type: integer
@@ -77,11 +75,19 @@ spec:
                 type: object
               storageClassName:
                 type: string
-              vmName:
-                type: string
             type: object
           status:
             description: VirtualMachineDiskStatus defines the observed state of VirtualMachineDisk
+            properties:
+              ephemeral:
+                default: false
+                type: boolean
+              phase:
+                type: string
+              vmName:
+                type: string
+            required:
+            - ephemeral
             type: object
         type: object
     served: true

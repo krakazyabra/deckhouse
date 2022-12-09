@@ -489,7 +489,6 @@ var DefaultImagesTags = map[string]interface{}{
 		"imageUbuntuFocal":  "imageHash-virtualization-imageUbuntuFocal",
 		"imageUbuntuJammy":  "imageHash-virtualization-imageUbuntuJammy",
 		"imageUbuntuXenial": "imageHash-virtualization-imageUbuntuXenial",
-		"ipamWebhook":       "imageHash-virtualization-ipamWebhook",
 		"libguestfs":        "imageHash-virtualization-libguestfs",
 		"virtApi":           "imageHash-virtualization-virtApi",
 		"virtController":    "imageHash-virtualization-virtController",

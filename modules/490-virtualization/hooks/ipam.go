@@ -23,6 +23,7 @@ import (
 	"github.com/flant/addon-operator/pkg/module_manager/go_hook"
 	"github.com/flant/addon-operator/sdk"
 	"github.com/flant/shell-operator/pkg/kube/object_patch"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,79 +32,88 @@ import (
 )
 
 const (
-	ipsSnapshot = "ipamIP"
-	vmsSnapshot = "ipamVM"
+	ipLeasesSnapshot = "ipamLeases"
+	ipClaimsSnapshot = "ipamClaims"
 )
 
 var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 	Queue: "/modules/virtualization/ipam-handler",
 	Kubernetes: []go_hook.KubernetesConfig{
 		{
-			Name:       ipsSnapshot,
+			Name:       ipLeasesSnapshot,
 			ApiVersion: gv,
 			Kind:       "VirtualMachineIPAddressLease",
 			FilterFunc: applyVirtualMachineIPAddressLeaseFilter,
 		},
 		{
-			Name:       vmsSnapshot,
+			Name:       ipClaimsSnapshot,
 			ApiVersion: gv,
-			Kind:       "VirtualMachine",
-			FilterFunc: applyVirtualMachineFilter,
+			Kind:       "VirtualMachineIPAddressClaim",
+			FilterFunc: applyVirtualMachineIPAddressClaimFilter,
 		},
 	},
-}, handleVMsAndIPs)
+}, doIPAM)
 
 type VirtualMachineIPAddressLeaseSnapshot struct {
-	Name      string
-	Namespace string
-	Address   string
-	Static    bool
-	VMName    string
+	Name           string
+	ClaimName      string
+	ClaimNamespace string
+	Address        string
+	Phase          string
 }
 
-type VirtualMachineSnapshot struct {
-	Name            string
-	Namespace       string
-	StaticIPAddress string
-	StatusIPAddress string
+type VirtualMachineIPAddressClaimSnapshot struct {
+	Name      string
+	Namespace string
+	LeaseName string
+	Address   string
+	Phase     string
+	VMName    string
+	Static    *bool
 }
 
 func applyVirtualMachineIPAddressLeaseFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
-	claim := &v1alpha1.VirtualMachineIPAddressLease{}
-	err := sdk.FromUnstructured(obj, claim)
+	lease := &v1alpha1.VirtualMachineIPAddressLease{}
+	leaseSnap := new(VirtualMachineIPAddressLeaseSnapshot)
+	err := sdk.FromUnstructured(obj, lease)
 	if err != nil {
 		return nil, fmt.Errorf("cannot convert object to VirtualMachineIPAddressLease: %v", err)
 	}
-	address := nameToIP(claim.Name)
-	if address == "" {
-		return nil, fmt.Errorf("cannot convert VirtualMachineIPAddressLease name to IP address: %s", claim.Name)
+
+	leaseSnap.Address = nameToIP(lease.Name)
+	if leaseSnap.Address == "" {
+		return nil, fmt.Errorf("cannot convert VirtualMachineIPAddressLease name to IP address: %s", lease.Name)
 	}
 
-	return &VirtualMachineIPAddressLeaseSnapshot{
+	leaseSnap.Name = lease.Name
+	leaseSnap.Phase = lease.Status.Phase
+	if lease.Spec.ClaimRef != nil {
+		leaseSnap.ClaimName = lease.Spec.ClaimRef.Name
+		leaseSnap.ClaimNamespace = lease.Spec.ClaimRef.Namespace
+	}
+
+	return leaseSnap, nil
+}
+
+func applyVirtualMachineIPAddressClaimFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+	claim := &v1alpha1.VirtualMachineIPAddressClaim{}
+	err := sdk.FromUnstructured(obj, claim)
+	if err != nil {
+		return nil, fmt.Errorf("cannot convert object to VirtualMachineIPAddressClaim: %v", err)
+	}
+
+	return &VirtualMachineIPAddressClaimSnapshot{
 		Name:      claim.Name,
 		Namespace: claim.Namespace,
-		Address:   address,
+		LeaseName: claim.Spec.LeaseName,
 		Static:    claim.Spec.Static,
-		VMName:    claim.Spec.VMName,
+		Address:   claim.Spec.Address,
+		Phase:     claim.Status.Phase,
+		VMName:    claim.Status.VMName,
 	}, nil
 }
 
-func applyVirtualMachineFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
-	vm := &v1alpha1.VirtualMachine{}
-	err := sdk.FromUnstructured(obj, vm)
-	if err != nil {
-		return nil, fmt.Errorf("cannot convert object to VirtualMachine: %v", err)
-	}
-
-	return &VirtualMachineSnapshot{
-		Name:            vm.Name,
-		Namespace:       vm.Namespace,
-		StaticIPAddress: vm.Spec.StaticIPAddress,
-		StatusIPAddress: vm.Status.IPAddress,
-	}, nil
-}
-
-// handleVMsAndIPs
+// doIPAM
 //
 // synopsis:
 //   This hook performs IPAM (IP Address Management) for VirtualMachines.
@@ -113,81 +123,35 @@ func applyVirtualMachineFilter(obj *unstructured.Unstructured) (go_hook.FilterRe
 //   Additionaly this hook performs the check to make sure that requested IP address is not
 // 	 assigned to other Virtual Machine.
 
-func handleVMsAndIPs(input *go_hook.HookInput) error {
-	ipSnap := input.Snapshots[ipsSnapshot]
-	vmSnap := input.Snapshots[vmsSnapshot]
-	if len(ipSnap) == 0 && len(vmSnap) == 0 {
-		input.LogEntry.Warnln("VirtualMachineIPAddressLease and VirtualMachine not found. Skip")
+func doIPAM(input *go_hook.HookInput) error {
+	leaseSnap := input.Snapshots[ipLeasesSnapshot]
+	claimSnap := input.Snapshots[ipClaimsSnapshot]
+	if len(claimSnap) == 0 && len(leaseSnap) == 0 {
+		input.LogEntry.Warnln("VirtualMachineIPAddressLease and VirtualMachineIPAddressClaim not found. Skip")
 		return nil
 	}
 
-	allocatedIPs := make(map[string]string)
+	allocatedIPs := make(map[string]struct{})
 
-CLAIM_LOOP:
+	// -------------------------------------
 	// Handle VirtualMachineIPAddressLeases
-	for _, sRaw := range ipSnap {
-		claim := sRaw.(*VirtualMachineIPAddressLeaseSnapshot)
-
-		// Address is static, but currently not in use
-		if claim.Static && claim.VMName == "" {
-			allocatedIPs[claim.Address] = ""
-			continue CLAIM_LOOP
+	// -------------------------------------
+	for _, sRaw := range leaseSnap {
+		lease := sRaw.(*VirtualMachineIPAddressLeaseSnapshot)
+		var claim *VirtualMachineIPAddressClaimSnapshot
+		if lease.ClaimName != "" {
+			claim = getIPClaim(&claimSnap, lease.ClaimNamespace, lease.ClaimName)
 		}
-
-		for _, dRaw := range vmSnap {
-			vm := dRaw.(*VirtualMachineSnapshot)
-
-			if claim.Namespace != vm.Namespace {
-				continue
-			}
-			if claim.VMName != vm.Name {
-				continue
-			}
-			// VM found
-
-			// Handle case when VM object contains other StaticIPAddress
-			if vm.StaticIPAddress != "" && vm.StaticIPAddress != claim.Address {
-				input.LogEntry.Warnf("VM %s/%s for IP %s is found, but other IP %s requested, releasing", vm.Namespace, vm.Name, claim.Name, vm.StaticIPAddress)
-				if claim.Static {
-					patch := map[string]interface{}{"spec": map[string]string{"vmName": ""}}
-					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", claim.Namespace, claim.Name)
-				} else {
-					input.PatchCollector.Delete(gv, "VirtualMachineIPAddressLease", claim.Namespace, claim.Name)
-					continue CLAIM_LOOP
-				}
-			}
-
-			// VM requested static IP, mark claim as static
-			if vm.StaticIPAddress == claim.Address && !claim.Static {
-				patch := map[string]interface{}{"spec": map[string]bool{"static": true}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", claim.Namespace, claim.Name)
-			}
-
-			if vm.StatusIPAddress != claim.Address {
-				patch := map[string]interface{}{"status": map[string]string{"ipAddress": claim.Address}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", vm.Namespace, vm.Name, object_patch.WithSubresource("/status"))
-			}
-
-			// Add IP to allocation map
-			allocatedIPs[claim.Address] = claim.Namespace + "/" + claim.VMName
-			continue CLAIM_LOOP
+		if claim == nil {
+			// No claims found, we can remove lease
+			input.PatchCollector.Delete(gv, "VirtualMachineIPAddressLease", "", lease.Name)
+			continue
 		}
-
-		// VM is not found, release the dynamic lease
-		if !claim.Static {
-			input.PatchCollector.Delete(gv, "VirtualMachineIPAddressLease", claim.Namespace, claim.Name)
-			continue CLAIM_LOOP
+		// Allocate IP address
+		if _, ok := allocatedIPs[lease.Address]; ok {
+			return fmt.Errorf("Duplicated IP address lease %s", lease.Address)
 		}
-
-		// VM is not found, preserve the static lease
-		if claim.VMName != "" {
-			patch := map[string]interface{}{"spec": map[string]string{"vmName": ""}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", claim.Namespace, claim.Name)
-		}
-
-		// Add IP to allocation map
-		allocatedIPs[claim.Address] = ""
-		continue CLAIM_LOOP
+		allocatedIPs[lease.Address] = struct{}{}
 	}
 
 	// Load CIDRs from config
@@ -200,75 +164,187 @@ CLAIM_LOOP:
 		parsedCIDRs = append(parsedCIDRs, parsedCIDR)
 	}
 
-	// Handle VMs
-	for _, sRaw := range vmSnap {
-		vm := sRaw.(*VirtualMachineSnapshot)
-		var newLease bool
-		var ip string
+	// -------------------------------------
+	// Handle VirtualMachineIPAddressClaims
+	// -------------------------------------
+	for _, sRaw := range claimSnap {
+		claim := sRaw.(*VirtualMachineIPAddressClaimSnapshot)
 
-		// Handle case when VM requested static IP
-		if vm.StaticIPAddress != "" {
-			ip = vm.StaticIPAddress
-			vmString := vm.Namespace + "/" + vm.Name
-			v, found := allocatedIPs[ip]
-			if v != "" && v != vmString {
-				// Static Claim is found, but it is in use by other VM
-				input.LogEntry.Warnf("VM %s/%s requested IP %s, but it is already allocated for %s", vm.Namespace, vm.Name, ip, vmString)
-				continue
-			}
-			if v == "" && found {
-				// Static Claim is found, needs to update vmName
-				patch := map[string]interface{}{"spec": map[string]interface{}{"vmName": vm.Name, "static": true}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", vm.Namespace, ipToName(ip))
-				allocatedIPs[ip] = vmString
-			}
-			if v == "" && !found {
-				newLease = true
-			}
+		patch := make(map[string]interface{})
+		patchSpec := make(map[string]interface{})
+		patchStatus := make(map[string]interface{})
+		if claim.Static == nil {
+			patchSpec["static"] = true
 		}
 
-		if vm.StaticIPAddress == "" {
-			ip, newLease = findIPForVM(&parsedCIDRs, allocatedIPs, vm.Namespace+"/"+vm.Name)
-			if ip == "" {
-				input.LogEntry.Errorf("Error allocating new IP Address for VM %s/%s", vm.Namespace, vm.Name)
-				continue
+		// Check for already allocated IP address
+		_, alreadyAllocated := allocatedIPs[claim.Address]
+		if alreadyAllocated && claim.Phase != "Bound" && claim.Phase != "InUse" {
+			// Wrong lease specified, remove leaseName field
+			if claim.LeaseName != "" {
+				patchSpec["leaseName"] = nil
 			}
-		}
-
-		if vm.StatusIPAddress != ip {
-			patch := map[string]interface{}{"status": map[string]interface{}{"ipAddress": ip}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", vm.Namespace, vm.Name, object_patch.WithSubresource("/status"))
-		}
-
-		// Claim already created
-		if !newLease {
+			patch := map[string]interface{}{"spec": patchSpec}
+			if claim.Phase != "Conflict" {
+				patch["status"] = map[string]interface{}{"phase": "Conflict"}
+			}
+			if len(patch) != 0 {
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+			}
+			// Stop processing conflicting claim
 			continue
 		}
 
-		// Claim is not found, create a new one
-		claim := &v1alpha1.VirtualMachineIPAddressLease{
+		var lease *VirtualMachineIPAddressLeaseSnapshot
+
+		if claim.LeaseName != "" {
+			lease = getIPLease(&leaseSnap, claim.LeaseName)
+		}
+		if lease != nil {
+			// Lease found
+			leaseMatched := (lease.ClaimName == claim.Name && lease.ClaimNamespace == claim.Namespace)
+			leaseWrong := (claim.Address != "" && lease.Address != claim.Address)
+			if leaseWrong {
+				if getIPClaim(&claimSnap, lease.ClaimNamespace, lease.ClaimName) == nil {
+					// If old lease is removed, we can consider it as correct
+					leaseWrong = false
+				}
+			}
+			if leaseWrong || !leaseMatched {
+				// TODO refactor this
+				// Wrong lease specified, remove leaseName field
+				patchSpec["leaseName"] = nil
+				patch := map[string]interface{}{"spec": patchSpec}
+				if !leaseMatched {
+					patch["status"] = map[string]interface{}{"phase": "Conflict"}
+				}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+				if !leaseMatched {
+					// Stop processing conflicting claim
+					continue
+				}
+			} else {
+				// Correct lease specified, check fields
+				if claim.Phase != "Bound" && claim.Phase != "InUse" {
+					patchStatus["phase"] = "Bound"
+				}
+				if claim.Address == "" {
+					patchSpec["address"] = lease.Address
+				}
+				if claim.Phase != "Bound" && claim.Phase != "InUse" {
+					patch["status"] = map[string]string{"phase": "Bound"}
+				}
+				if len(patchStatus) != 0 {
+					patch["status"] = patchStatus
+				}
+				if len(patchSpec) != 0 {
+					patch["spec"] = patchSpec
+				}
+				if len(patch) != 0 {
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+				}
+
+				if lease.Phase != "Bound" {
+					patch := map[string]interface{}{"status": map[string]interface{}{"phase": "Bound"}}
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", "", lease.Name, object_patch.WithSubresource("/status"))
+				}
+				// nothing to do
+				continue
+			}
+		}
+
+		// Lease not found, create a new one
+
+		var ip string
+		if claim.Address != "" {
+			ip = claim.Address
+			if err := allocateIP(parsedCIDRs, allocatedIPs, claim.Address); err != nil {
+				switch err.Error() {
+				case "OutOfRange":
+					input.LogEntry.Warnf("error allocating ip %s, not in CIDRs %s", ip, parsedCIDRs)
+				case "Conflict":
+					input.LogEntry.Warnf("error allocating ip %s, already allocated", ip)
+				}
+				patch := map[string]interface{}{"status": map[string]interface{}{"phase": err.Error()}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+				continue
+			}
+		} else {
+			var err error
+			ip, err = allocateNewIP(parsedCIDRs, allocatedIPs)
+			if err != nil {
+				patch := map[string]interface{}{"status": map[string]interface{}{"phase": err.Error()}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+			}
+		}
+
+		leaseName := ipToName(ip)
+
+		newLease := &v1alpha1.VirtualMachineIPAddressLease{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "VirtualMachineIPAddressLease",
 				APIVersion: gv,
 			},
 			ObjectMeta: v1.ObjectMeta{
-				Name:      ipToName(ip),
-				Namespace: vm.Namespace,
+				Name: leaseName,
 			},
 			Spec: v1alpha1.VirtualMachineIPAddressLeaseSpec{
-				VMName: vm.Name,
+				ClaimRef: &corev1.ObjectReference{
+					Name:      claim.Name,
+					Namespace: claim.Namespace,
+				},
 			},
 		}
-		if vm.StaticIPAddress != "" {
-			claim.Spec.Static = true
-		}
-		input.PatchCollector.Create(claim)
+		input.PatchCollector.Create(newLease)
 
-		// Add IP to allocation map
-		allocatedIPs[ip] = vm.Namespace + "/" + vm.Name
+		patch = map[string]interface{}{"status": map[string]interface{}{"phase": "Bound"}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", "", leaseName, object_patch.WithSubresource("/status"))
+
+		patchSpec = make(map[string]interface{})
+		if claim.Static == nil {
+			patchSpec["static"] = true
+		}
+		if claim.LeaseName != leaseName {
+			patchSpec["leaseName"] = leaseName
+		}
+		if claim.Address != ip {
+			patchSpec["address"] = ip
+		}
+		if len(patchSpec) != 0 {
+			patch["spec"] = patchSpec
+		}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 	}
 
 	return nil
+}
+
+func allocateIP(parsedCIDRs []*net.IPNet, allocatedIPs map[string]struct{}, address string) error {
+	ip := net.ParseIP(address)
+	if _, ok := allocatedIPs[ip.String()]; !ok {
+		for _, cidr := range parsedCIDRs {
+			if cidr.Contains(ip) {
+				allocatedIPs[ip.String()] = struct{}{}
+				return nil
+			}
+		}
+		return fmt.Errorf("OutOfRange")
+	}
+	return fmt.Errorf("Conflict")
+}
+
+func allocateNewIP(parsedCIDRs []*net.IPNet, allocatedIPs map[string]struct{}) (string, error) {
+	for _, cidr := range parsedCIDRs {
+		ip := cidr.IP
+		for ip := ip.Mask(cidr.Mask); cidr.Contains(ip); inc(ip) {
+			if _, ok := allocatedIPs[ip.String()]; !ok {
+				allocatedIPs[ip.String()] = struct{}{}
+				return ip.String(), nil
+			}
+		}
+	}
+	// controller_utils.go:260] Error while processing Node Add/Delete: failed to allocate cidr from cluster cidr at idx:0: CIDR allocation failed; there are no remaining CIDRs left to allocate in the accepted range
+	return "", fmt.Errorf("NoRemaingingCIDRs")
 }
 
 func findIPForVM(parsedCIDRs *[]*net.IPNet, allocatedIPs map[string]string, vmString string) (string, bool) {
@@ -297,4 +373,14 @@ func inc(ip net.IP) {
 			break
 		}
 	}
+}
+
+func getIPLease(snapshot *[]go_hook.FilterResult, name string) *VirtualMachineIPAddressLeaseSnapshot {
+	for _, dRaw := range *snapshot {
+		lease := dRaw.(*VirtualMachineIPAddressLeaseSnapshot)
+		if lease.Name == name {
+			return lease
+		}
+	}
+	return nil
 }

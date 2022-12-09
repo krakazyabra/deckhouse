@@ -26,14 +26,14 @@ import (
 
 // VirtualMachineSpec defines the desired state of VirtualMachine
 type VirtualMachineSpec struct {
-	Running         *bool                          `json:"running,omitempty" optional:"true"`
-	StaticIPAddress string                         `json:"staticIPAddress,omitempty"`
-	Resources       v1.ResourceList                `json:"resources,omitempty"`
-	UserName        string                         `json:"userName,omitempty"`
-	SSHPublicKey    string                         `json:"sshPublicKey,omitempty"`
-	BootDisk        *BootDisk                      `json:"bootDisk,omitempty"`
-	CloudInit       *virtv1.CloudInitNoCloudSource `json:"cloudInit,omitempty"`
-	DiskAttachments *[]DiskSource                  `json:"diskAttachments,omitempty"`
+	Running            *bool                          `json:"running,omitempty"`
+	IPAddressClaimName *string                        `json:"ipAddressClaimName,omitempty"`
+	Resources          v1.ResourceList                `json:"resources,omitempty"`
+	UserName           *string                        `json:"userName,omitempty"`
+	SSHPublicKey       *string                        `json:"sshPublicKey,omitempty"`
+	BootDisk           *BootDisk                      `json:"bootDisk,omitempty"`
+	CloudInit          *virtv1.CloudInitNoCloudSource `json:"cloudInit,omitempty"`
+	DiskAttachments    *[]DiskSource                  `json:"diskAttachments,omitempty"`
 }
 
 // VirtualMachineStatus defines the observed state of VirtualMachine
@@ -56,7 +56,7 @@ type BootDisk struct {
 	// Type represents the size for newly created disk
 	Size resource.Quantity `json:"size"`
 	// Should boot disk be removed with VM
-	Ephemeral bool `json:"ephemeral,omitempty"`
+	AutoDelete bool `json:"autoDelete,omitempty"`
 	// Bus indicates the type of disk device to emulate.
 	// supported values: virtio, sata, scsi, usb.
 	Bus string `json:"bus,omitempty"`
