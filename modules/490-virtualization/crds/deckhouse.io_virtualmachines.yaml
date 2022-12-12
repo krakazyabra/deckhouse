@@ -167,10 +167,6 @@ spec:
               ipAddress:
                 description: IP address of Virtual Machine
                 type: string
-              nodeName:
-                description: NodeName is the name where the VirtualMachineInstance
-                  is currently running.
-                type: string
               phase:
                 description: Phase is a human readable, high-level representation
                   of the status of the virtual machine

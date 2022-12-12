@@ -231,6 +231,11 @@ metadata:
 			Expect(vm).To(Not(BeEmpty()))
 			Expect(vm.Field(`apiVersion`).String()).To(Equal("kubevirt.io/v1"))
 
+			d8vm := f.KubernetesResource("VirtualMachine", "default", "vm1")
+			Expect(d8vm).To(Not(BeEmpty()))
+			Expect(d8vm.Field(`apiVersion`).String()).To(Equal("deckhouse.io/v1alpha1"))
+			Expect(d8vm.Field(`status.ipAddress`).String()).To(Equal("10.10.10.2"))
+
 			By("should update fields for existing disk")
 			disk2 := f.KubernetesResource("VirtualMachineDisk", "default", "vm2-boot")
 			Expect(disk2).To(Not(BeEmpty()))

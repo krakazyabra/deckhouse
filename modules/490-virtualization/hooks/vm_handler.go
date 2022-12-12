@@ -279,6 +279,14 @@ func handleVMs(input *go_hook.HookInput) error {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      ipClaimName,
 					Namespace: d8vm.Namespace,
+					OwnerReferences: []v1.OwnerReference{{
+						APIVersion:         gv,
+						BlockOwnerDeletion: pointer.Bool(true),
+						Controller:         pointer.Bool(true),
+						Kind:               "VirtualMachine",
+						Name:               d8vm.Name,
+						UID:                d8vm.UID,
+					}},
 				},
 				Spec: v1alpha1.VirtualMachineIPAddressClaimSpec{
 					Static: pointer.Bool(false),
@@ -288,12 +296,20 @@ func handleVMs(input *go_hook.HookInput) error {
 			continue
 		}
 
-		if !(ipClaim.Phase == "Bound" || (ipClaim.Phase == "InUse" && ipClaim.VMName == d8vm.Name)) {
+		if ipClaim.Phase != "Bound" || (ipClaim.VMName != "" && ipClaim.VMName != d8vm.Name) {
 			// IPAddressClaim is not in valid state, nothing to do
+			if d8vm.Status.Phase != "ErrorIPNotFound" {
+				patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotFound"}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
+			}
 			continue
 		}
 		if ipClaim.Address == "" {
-			// IPAddress assigned by IPAM, nothing to do
+			// IPAddressClaim is not assigned by IPAM, nothing to do
+			if d8vm.Status.Phase != "ErrorIPNotAssigned" {
+				patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotAssigned"}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
+			}
 			continue
 		}
 
@@ -316,12 +332,31 @@ func handleVMs(input *go_hook.HookInput) error {
 			input.PatchCollector.Filter(apply, "kubevirt.io/v1", "VirtualMachine", d8vm.Namespace, d8vm.Name)
 		} else {
 			// KubeVirt VirtualMachine not found, needs to create a new one
-			vm := &virtv1.VirtualMachine{}
-			err := setVMFields(d8vm, vm, ipClaim.Address, bootVirtualMachineDiskName)
+			kvvm = &virtv1.VirtualMachine{}
+			err := setVMFields(d8vm, kvvm, ipClaim.Address, bootVirtualMachineDiskName)
 			if err != nil {
 				return err
 			}
-			input.PatchCollector.Create(vm)
+			input.PatchCollector.Create(kvvm)
+		}
+
+		// Update status of IPAddressClaim
+		if ipClaim.VMName != d8vm.Name {
+			patch := map[string]interface{}{"status": map[string]interface{}{"vmName": d8vm.Name}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name, object_patch.WithSubresource("/status"))
+		}
+
+		// Update status of VirtualMachine
+		patchStatus := map[string]interface{}{}
+		if d8vm.Status.IPAddress != ipClaim.Address {
+			patchStatus["ipAddress"] = ipClaim.Address
+		}
+		if string(d8vm.Status.Phase) != string(kvvm.Status.PrintableStatus) {
+			patchStatus["phase"] = kvvm.Status.PrintableStatus
+		}
+		if len(patchStatus) != 0 {
+			patch := map[string]interface{}{"status": patchStatus}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
 		}
 	}
 
@@ -333,6 +368,18 @@ func handleVMs(input *go_hook.HookInput) error {
 			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
 			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 		}
+	}
+
+	// IPAddressClaims cleanup loop
+	for _, sRaw := range ipClaimSnap {
+		ipClaim := sRaw.(*VirtualMachineIPAddressClaimSnapshot)
+		if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
+			// Remove vmName
+			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", ipClaim.Namespace, ipClaim.Name)
+		}
+
+		// TODO handle deletion of OwnerReference
 	}
 
 	return nil

@@ -40,8 +40,6 @@ type VirtualMachineSpec struct {
 type VirtualMachineStatus struct {
 	// Phase is a human readable, high-level representation of the status of the virtual machine
 	Phase virtv1.VirtualMachinePrintableStatus `json:"phase,omitempty"`
-	// NodeName is the name where the VirtualMachineInstance is currently running.
-	NodeName string `json:"nodeName,omitempty"`
 	// IP address of Virtual Machine
 	IPAddress string `json:"ipAddress,omitempty"`
 }

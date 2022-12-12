@@ -179,7 +179,7 @@ func doIPAM(input *go_hook.HookInput) error {
 
 		// Check for already allocated IP address
 		_, alreadyAllocated := allocatedIPs[claim.Address]
-		if alreadyAllocated && claim.Phase != "Bound" && claim.Phase != "InUse" {
+		if alreadyAllocated && claim.Phase != "Bound" {
 			// Wrong lease specified, remove leaseName field
 			if claim.LeaseName != "" {
 				patchSpec["leaseName"] = nil
@@ -227,13 +227,13 @@ func doIPAM(input *go_hook.HookInput) error {
 				}
 			} else {
 				// Correct lease specified, check fields
-				if claim.Phase != "Bound" && claim.Phase != "InUse" {
+				if claim.Phase != "Bound" {
 					patchStatus["phase"] = "Bound"
 				}
 				if claim.Address == "" {
 					patchSpec["address"] = lease.Address
 				}
-				if claim.Phase != "Bound" && claim.Phase != "InUse" {
+				if claim.Phase != "Bound" {
 					patch["status"] = map[string]string{"phase": "Bound"}
 				}
 				if len(patchStatus) != 0 {
