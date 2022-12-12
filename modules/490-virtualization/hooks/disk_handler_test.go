@@ -89,6 +89,52 @@ spec:
     name: centos-7
   storageClassName: linstor-thindata-r2
   size: 10Gi
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: mydata2
+  namespace: ns1
+spec:
+  source:
+    kind: ClusterVirtualMachineImage
+    name: centos-7
+  storageClassName: linstor-thindata-r2
+  size: 12Gi
+---
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: disk-mydata2
+  namespace: ns1
+spec:
+  pvc:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: linstor-thindata-r2
+    volumeMode: Block
+  source:
+    registry:
+      pullMethod: node
+      url: docker://dev-registry.deckhouse.io/sys/deckhouse-oss:92d31ba325ce661deddad46aae171db1d64536053b97da1652586e76-1666192123869
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: disk-mydata2
+  namespace: ns1
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: linstor-thindata-r2
+  volumeMode: Block
+  volumeName: pvc-50c071aa-ac84-4f8b-8d05-6002c31d4ee3
 `),
 			)
 			f.RunHook()
@@ -104,6 +150,10 @@ spec:
 			Expect(dataVolume.Field(`spec.pvc.storageClassName`).String()).To(Equal("linstor-thindata-r2"))
 			Expect(dataVolume.Field(`spec.pvc.volumeMode`).String()).To(Equal("Block"))
 			Expect(dataVolume.Field(`spec.pvc.accessModes`).String()).To(Equal("[\"ReadWriteMany\"]"))
+
+			By("Should update size of PVC")
+			pvc := f.KubernetesResource("PersistentVolumeClaim", "ns1", "disk-mydata2")
+			Expect(pvc.Field(`spec.resources.requests.storage`).String()).To(Equal("12Gi"))
 		})
 	})
 

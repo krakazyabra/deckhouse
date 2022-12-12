@@ -120,6 +120,7 @@ func applyVirtualMachineDisksFilter(obj *unstructured.Unstructured) (go_hook.Fil
 		Namespace: disk.Namespace,
 		VMName:    disk.Status.VMName,
 		Ephemeral: disk.Status.Ephemeral,
+		Size:      disk.Spec.Size,
 	}, nil
 }
 
@@ -166,42 +167,6 @@ func handleVMs(input *go_hook.HookInput) error {
 	for _, sRaw := range deckhouseVMSnap {
 		d8vm := sRaw.(*v1alpha1.VirtualMachine)
 
-		var ipClaimName string
-		if d8vm.Spec.IPAddressClaimName != nil {
-			ipClaimName = *d8vm.Spec.IPAddressClaimName
-		} else {
-			ipClaimName = d8vm.Name
-		}
-		ipClaim := getIPClaim(&ipClaimSnap, d8vm.Namespace, ipClaimName)
-
-		if ipClaim == nil {
-			// Claim is not found, create a new one
-			claim := &v1alpha1.VirtualMachineIPAddressClaim{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "VirtualMachineIPAddressClaim",
-					APIVersion: gv,
-				},
-				ObjectMeta: v1.ObjectMeta{
-					Name:      ipClaimName,
-					Namespace: d8vm.Namespace,
-				},
-				Spec: v1alpha1.VirtualMachineIPAddressClaimSpec{
-					Static: pointer.Bool(false),
-				},
-			}
-			input.PatchCollector.Create(claim)
-			continue
-		}
-
-		if !(ipClaim.Phase == "Bound" || (ipClaim.Phase == "InUse" && ipClaim.VMName == d8vm.Name)) {
-			// IPAddressClaim is not in valid state, nothing to do
-			continue
-		}
-		if ipClaim.Address == "" {
-			// IPAddress assigned by IPAM, nothing to do
-			continue
-		}
-
 		// Handle boot disk
 		var bootVirtualMachineDiskName string
 		if d8vm.Spec.BootDisk != nil {
@@ -213,7 +178,6 @@ func handleVMs(input *go_hook.HookInput) error {
 				if bootVirtualMachineDiskName == "" {
 					bootVirtualMachineDiskName = d8vm.Name + "-boot"
 				}
-				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
 				ownerReferences := []v1.OwnerReference{}
 				if d8vm.Spec.BootDisk.AutoDelete {
 					ownerReferences = []v1.OwnerReference{{
@@ -226,9 +190,16 @@ func handleVMs(input *go_hook.HookInput) error {
 					}}
 				}
 
+				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
 				if disk != nil {
+					// Disk found
+					// ensure size is set correctly
+					if !disk.Size.Equal(d8vm.Spec.BootDisk.Size) {
+						patch := map[string]interface{}{"spec": map[string]interface{}{"size": d8vm.Spec.BootDisk.Size.String()}}
+						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, bootVirtualMachineDiskName)
+					}
+					// ensure ephemeral is set
 					patchStatus := map[string]interface{}{}
-					// Disk found, ensure ephemeral is set // TODO to status
 					if d8vm.Spec.BootDisk.AutoDelete != disk.Ephemeral {
 						patchStatus["ephemeral"] = d8vm.Spec.BootDisk.AutoDelete
 					}
@@ -288,6 +259,42 @@ func handleVMs(input *go_hook.HookInput) error {
 					return err
 				}
 			}
+		}
+
+		var ipClaimName string
+		if d8vm.Spec.IPAddressClaimName != nil {
+			ipClaimName = *d8vm.Spec.IPAddressClaimName
+		} else {
+			ipClaimName = d8vm.Name
+		}
+		ipClaim := getIPClaim(&ipClaimSnap, d8vm.Namespace, ipClaimName)
+
+		if ipClaim == nil {
+			// Claim is not found, create a new one
+			claim := &v1alpha1.VirtualMachineIPAddressClaim{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "VirtualMachineIPAddressClaim",
+					APIVersion: gv,
+				},
+				ObjectMeta: v1.ObjectMeta{
+					Name:      ipClaimName,
+					Namespace: d8vm.Namespace,
+				},
+				Spec: v1alpha1.VirtualMachineIPAddressClaimSpec{
+					Static: pointer.Bool(false),
+				},
+			}
+			input.PatchCollector.Create(claim)
+			continue
+		}
+
+		if !(ipClaim.Phase == "Bound" || (ipClaim.Phase == "InUse" && ipClaim.VMName == d8vm.Name)) {
+			// IPAddressClaim is not in valid state, nothing to do
+			continue
+		}
+		if ipClaim.Address == "" {
+			// IPAddress assigned by IPAM, nothing to do
+			continue
 		}
 
 		// handle KubeVirt VirtualMachine
@@ -489,7 +496,7 @@ func getIPClaim(snapshot *[]go_hook.FilterResult, namespace, name string) *Virtu
 
 func checkAndApplyDiskPatches(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine, disk *VirtualMachineDiskSnapshot) error {
 	if disk.VMName != "" && disk.VMName != d8vm.Name {
-		return fmt.Errorf("disk already attached to other VirtualMachine: %v", disk.VMName)
+		return fmt.Errorf("disk already attached to another VirtualMachine: %v", disk.VMName)
 	}
 	if disk.VMName != d8vm.Name {
 		patch := map[string]interface{}{"spec": map[string]string{"vmName": d8vm.Name}}

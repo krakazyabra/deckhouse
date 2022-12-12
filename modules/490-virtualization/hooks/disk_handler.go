@@ -41,6 +41,7 @@ const (
 	disksSnapshot            = "diskHandlerVirtualMachineDisk"
 	clusterImagesSnapshot    = "diskHandlerClusterVirtualMachineImage"
 	dataVolumesSnapshot      = "diskHandlerDataVolume"
+	pvcsSnapshot             = "diskHandlerPVC"
 	cdiDataVolumeCRDSnapshot = "diskHandlerCDIDataVolumeCRD"
 )
 
@@ -53,6 +54,12 @@ var diskHandlerHookConfig = &go_hook.HookConfig{
 			ApiVersion: "",
 			Kind:       "",
 			FilterFunc: applyDataVolumeFilter,
+		},
+		{
+			Name:       pvcsSnapshot,
+			ApiVersion: "v1",
+			Kind:       "PersistentVolumeClaim",
+			FilterFunc: applyPVCFilter,
 		},
 		{
 			Name:       storageClassesSnapshot,
@@ -118,6 +125,12 @@ type ClusterVirtualMachineImageSnapshot struct {
 type DataVolumeSnapshot struct {
 	Name      string
 	Namespace string
+}
+
+type PVCSnapshot struct {
+	Name      string
+	Namespace string
+	Size      resource.Quantity
 }
 
 func applyStorageClassFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
@@ -201,6 +214,25 @@ func applyDataVolumeFilter(obj *unstructured.Unstructured) (go_hook.FilterResult
 	}, nil
 }
 
+func applyPVCFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+	pvc := &corev1.PersistentVolumeClaim{}
+	err := sdk.FromUnstructured(obj, pvc)
+	if err != nil {
+		return nil, fmt.Errorf("cannot convert object to PVC: %v", err)
+	}
+
+	var size resource.Quantity
+	if s := pvc.Spec.Resources.Requests.Storage(); s != nil {
+		size = *s
+	}
+
+	return &PVCSnapshot{
+		Name:      pvc.Name,
+		Namespace: pvc.Namespace,
+		Size:      size,
+	}, nil
+}
+
 // handleVirtualMachineDisks
 //
 // synopsis:
@@ -234,6 +266,7 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 	diskSnap := input.Snapshots[disksSnapshot]
 	clusterImageSnap := input.Snapshots[clusterImagesSnapshot]
 	dataVolumeSnap := input.Snapshots[dataVolumesSnapshot]
+	pvcSnap := input.Snapshots[pvcsSnapshot]
 
 	if len(diskSnap) == 0 && len(storageClassSnap) == 0 {
 		input.LogEntry.Warnln("VirtualMachineDisk and StorageClass not found. Skip")
@@ -243,7 +276,15 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 	for _, sRaw := range diskSnap {
 		disk := sRaw.(*VirtualMachineDiskSnapshot)
 		if getDataVolume(&dataVolumeSnap, disk.Namespace, "disk-"+disk.Name) != nil {
-			// DataVolume found, noting to do
+			// DataVolume found, check and resize PVC
+			if pvc := getPVC(&pvcSnap, disk.Namespace, "disk-"+disk.Name); pvc != nil {
+				if !disk.Size.Equal(pvc.Size) {
+					patch := map[string]interface{}{"spec": map[string]interface{}{"resources": map[string]interface{}{"requests": corev1.ResourceList{
+						corev1.ResourceStorage: disk.Size,
+					}}}}
+					input.PatchCollector.MergePatch(patch, "v1", "PersistentVolumeClaim", disk.Namespace, "disk-"+disk.Name)
+				}
+			}
 			continue
 		}
 
@@ -344,6 +385,16 @@ func getDataVolume(snapshot *[]go_hook.FilterResult, namespace, name string) *Da
 		dataVolume := dRaw.(*DataVolumeSnapshot)
 		if dataVolume.Namespace == namespace && dataVolume.Name == name {
 			return dataVolume
+		}
+	}
+	return nil
+}
+
+func getPVC(snapshot *[]go_hook.FilterResult, namespace, name string) *PVCSnapshot {
+	for _, dRaw := range *snapshot {
+		pvc := dRaw.(*PVCSnapshot)
+		if pvc.Namespace == namespace && pvc.Name == name {
+			return pvc
 		}
 	}
 	return nil

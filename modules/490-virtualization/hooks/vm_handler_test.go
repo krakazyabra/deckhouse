@@ -118,7 +118,7 @@ spec:
       name: ubuntu-20.04
     size: 10Gi
     storageClassName: linstor-slow
-    ephemeral: false
+    autoDelete: false
   cloudInit:
     userData: |-
       chpasswd: { expire: False }
@@ -147,6 +147,12 @@ spec:
   storageClassName: linstor-slow
   size: 10Gi
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: disk-vm2-boot
+  namespace: default
+---
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachineDisk
 metadata:
@@ -162,6 +168,34 @@ status:
   ephemeral: false
   vmName: vm3
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: disk-vm3-boot
+  namespace: default
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vm4
+  namespace: default
+spec:
+  running: true
+  resources:
+    memory: 512M
+    cpu: "1"
+  userName: admin
+  sshPublicKey: "ssh-rsa asdasdkflkasddf..."
+  bootDisk:
+    source:
+      kind: ClusterVirtualMachineImage
+      name: ubuntu-20.04
+    size: 12Gi
+    storageClassName: linstor-slow
+  cloudInit:
+    userData: |-
+      chpasswd: { expire: False }
+---
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachineDisk
 metadata:
@@ -172,16 +206,22 @@ spec:
     kind: ClusterVirtualMachineImage
     name: ubuntu-20.04
   storageClassName: linstor-slow
-  size: 10Gi
+  size: 11Gi
 status:
-  ephemeral: true
+  ephemeral: false
   vmName: vm4
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: disk-vm4-boot
+  namespace: default
 `),
 			)
 			f.RunHook()
 		})
 
-		It("Creates VirtualMachine and boot Disk", func() {
+		It("Manages VirtualMachine and boot Disk", func() {
 			Expect(f).To(ExecuteSuccessfully())
 			disk := f.KubernetesResource("VirtualMachineDisk", "default", "vm1-boot")
 			Expect(disk).To(Not(BeEmpty()))
@@ -202,9 +242,10 @@ status:
 			Expect(disk3).To(Not(BeEmpty()))
 			Expect(disk3.Field(`status.vmName`).String()).To(Equal(""))
 
-			By("should delete ephemeral disks")
+			By("should resize existing disk")
 			disk4 := f.KubernetesResource("VirtualMachineDisk", "default", "vm4-boot")
-			Expect(disk4).To(BeEmpty())
+			Expect(disk4).To(Not(BeEmpty()))
+			Expect(disk4.Field(`spec.size`).String()).To(Equal("12Gi"))
 		})
 	})
 
