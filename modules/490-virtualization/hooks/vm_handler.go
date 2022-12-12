@@ -376,10 +376,28 @@ func handleVMs(input *go_hook.HookInput) error {
 		if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
 			// Remove vmName
 			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", ipClaim.Namespace, ipClaim.Name)
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
 		}
 
-		// TODO handle deletion of OwnerReference
+		// Handle OwnerReference
+		if ipClaim.Static != nil && *ipClaim.Static && ipClaim.OwnerReferenceIsSet {
+			patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": nil}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+		}
+		if ipClaim.Static != nil && !*ipClaim.Static && !ipClaim.OwnerReferenceIsSet && ipClaim.VMName != "" {
+			if d8vm := getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName); d8vm != nil {
+				ownerReferences := []v1.OwnerReference{{
+					APIVersion:         gv,
+					BlockOwnerDeletion: pointer.Bool(true),
+					Controller:         pointer.Bool(true),
+					Kind:               "VirtualMachine",
+					Name:               d8vm.Name,
+					UID:                d8vm.UID,
+				}}
+				patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+			}
+		}
 	}
 
 	return nil

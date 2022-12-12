@@ -63,6 +63,7 @@ spec:
   leaseName: ip-10-10-10-2
 status:
   phase: Bound
+  vmName: vm1
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachine
@@ -236,6 +237,11 @@ metadata:
 			Expect(d8vm.Field(`apiVersion`).String()).To(Equal("deckhouse.io/v1alpha1"))
 			Expect(d8vm.Field(`status.ipAddress`).String()).To(Equal("10.10.10.2"))
 
+			ipClaim := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "mysql")
+			Expect(ipClaim).To(Not(BeEmpty()))
+			Expect(d8vm.Field(`metadata.ownerReferrences`).Array()).ToNot(HaveLen(0))
+			Expect(d8vm.Field(`metadata.ownerReferrences[0].name`).String()).To(Equal("vm1"))
+
 			By("should update fields for existing disk")
 			disk2 := f.KubernetesResource("VirtualMachineDisk", "default", "vm2-boot")
 			Expect(disk2).To(Not(BeEmpty()))
@@ -253,5 +259,7 @@ metadata:
 			Expect(disk4.Field(`spec.size`).String()).To(Equal("12Gi"))
 		})
 	})
+
+	// TODO ownerReferrences tests
 
 })

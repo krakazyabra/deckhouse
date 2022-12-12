@@ -63,13 +63,14 @@ type VirtualMachineIPAddressLeaseSnapshot struct {
 }
 
 type VirtualMachineIPAddressClaimSnapshot struct {
-	Name      string
-	Namespace string
-	LeaseName string
-	Address   string
-	Phase     string
-	VMName    string
-	Static    *bool
+	Name                string
+	Namespace           string
+	LeaseName           string
+	Address             string
+	Phase               string
+	VMName              string
+	Static              *bool
+	OwnerReferenceIsSet bool
 }
 
 func applyVirtualMachineIPAddressLeaseFilter(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
@@ -103,13 +104,14 @@ func applyVirtualMachineIPAddressClaimFilter(obj *unstructured.Unstructured) (go
 	}
 
 	return &VirtualMachineIPAddressClaimSnapshot{
-		Name:      claim.Name,
-		Namespace: claim.Namespace,
-		LeaseName: claim.Spec.LeaseName,
-		Static:    claim.Spec.Static,
-		Address:   claim.Spec.Address,
-		Phase:     claim.Status.Phase,
-		VMName:    claim.Status.VMName,
+		Name:                claim.Name,
+		Namespace:           claim.Namespace,
+		LeaseName:           claim.Spec.LeaseName,
+		Static:              claim.Spec.Static,
+		Address:             claim.Spec.Address,
+		Phase:               claim.Status.Phase,
+		VMName:              claim.Status.VMName,
+		OwnerReferenceIsSet: len(claim.OwnerReferences) != 0,
 	}, nil
 }
 
