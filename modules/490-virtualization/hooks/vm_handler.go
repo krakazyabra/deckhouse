@@ -214,9 +214,19 @@ func handleVMs(input *go_hook.HookInput) error {
 					bootVirtualMachineDiskName = d8vm.Name + "-boot"
 				}
 				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
+				ownerReferences := []v1.OwnerReference{}
+				if d8vm.Spec.BootDisk.AutoDelete {
+					ownerReferences = []v1.OwnerReference{{
+						APIVersion:         gv,
+						BlockOwnerDeletion: pointer.Bool(true),
+						Controller:         pointer.Bool(true),
+						Kind:               "VirtualMachine",
+						Name:               d8vm.Name,
+						UID:                d8vm.UID,
+					}}
+				}
 
 				if disk != nil {
-
 					patchStatus := map[string]interface{}{}
 					// Disk found, ensure ephemeral is set // TODO to status
 					if d8vm.Spec.BootDisk.AutoDelete != disk.Ephemeral {
@@ -226,7 +236,9 @@ func handleVMs(input *go_hook.HookInput) error {
 						patchStatus["vmName"] = d8vm.Name
 					}
 					if len(patchStatus) != 0 {
-						patch := map[string]interface{}{"status": patchStatus}
+						patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
+						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName)
+						patch = map[string]interface{}{"status": patchStatus}
 						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
 					}
 				} else {
@@ -237,8 +249,9 @@ func handleVMs(input *go_hook.HookInput) error {
 							APIVersion: gv,
 						},
 						ObjectMeta: v1.ObjectMeta{
-							Name:      bootVirtualMachineDiskName,
-							Namespace: d8vm.Namespace,
+							Name:            bootVirtualMachineDiskName,
+							Namespace:       d8vm.Namespace,
+							OwnerReferences: ownerReferences,
 						},
 						Spec: v1alpha1.VirtualMachineDiskSpec{
 							StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
@@ -308,15 +321,10 @@ func handleVMs(input *go_hook.HookInput) error {
 	// Disks cleanup loop
 	for _, sRaw := range diskSnap {
 		disk := sRaw.(*VirtualMachineDiskSnapshot)
-		if disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
-			if disk.Ephemeral {
-				// Delete disk
-				input.PatchCollector.Delete(gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
-			} else {
-				// Remove vmName
-				patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
-			}
+		if !disk.Ephemeral && disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
+			// Remove vmName
+			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 		}
 	}
 
