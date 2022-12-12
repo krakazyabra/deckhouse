@@ -183,6 +183,7 @@ func doIPAM(input *go_hook.HookInput) error {
 			// Wrong lease specified, remove leaseName field
 			if claim.LeaseName != "" {
 				patchSpec["leaseName"] = nil
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
 			}
 			patch := map[string]interface{}{"spec": patchSpec}
 			if claim.Phase != "Conflict" {
@@ -218,6 +219,7 @@ func doIPAM(input *go_hook.HookInput) error {
 				if !leaseMatched {
 					patch["status"] = map[string]interface{}{"phase": "Conflict"}
 				}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 				if !leaseMatched {
 					// Stop processing conflicting claim
@@ -236,12 +238,11 @@ func doIPAM(input *go_hook.HookInput) error {
 				}
 				if len(patchStatus) != 0 {
 					patch["status"] = patchStatus
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 				}
 				if len(patchSpec) != 0 {
 					patch["spec"] = patchSpec
-				}
-				if len(patch) != 0 {
-					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
 				}
 
 				if lease.Phase != "Bound" {
@@ -265,6 +266,10 @@ func doIPAM(input *go_hook.HookInput) error {
 				case "Conflict":
 					input.LogEntry.Warnf("error allocating ip %s, already allocated", ip)
 				}
+				if claim.LeaseName != "" {
+					patch := map[string]interface{}{"spec": map[string]interface{}{"leaseName": nil}}
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
+				}
 				patch := map[string]interface{}{"status": map[string]interface{}{"phase": err.Error()}}
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 				continue
@@ -273,6 +278,10 @@ func doIPAM(input *go_hook.HookInput) error {
 			var err error
 			ip, err = allocateNewIP(parsedCIDRs, allocatedIPs)
 			if err != nil {
+				if claim.LeaseName != "" {
+					patch := map[string]interface{}{"spec": map[string]interface{}{"leaseName": nil}}
+					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
+				}
 				patch := map[string]interface{}{"status": map[string]interface{}{"phase": err.Error()}}
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 			}
@@ -297,9 +306,12 @@ func doIPAM(input *go_hook.HookInput) error {
 		}
 		input.PatchCollector.Create(newLease)
 
+		// patch VirtualMachineIPAddressLease
 		patch = map[string]interface{}{"status": map[string]interface{}{"phase": "Bound"}}
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressLease", "", leaseName, object_patch.WithSubresource("/status"))
 
+		// patch VirtualMachineIPAddressLease
+		patch = map[string]interface{}{"status": map[string]interface{}{"phase": "Bound"}}
 		patchSpec = make(map[string]interface{})
 		if claim.Static == nil {
 			patchSpec["static"] = true
@@ -312,6 +324,7 @@ func doIPAM(input *go_hook.HookInput) error {
 		}
 		if len(patchSpec) != 0 {
 			patch["spec"] = patchSpec
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name)
 		}
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", claim.Namespace, claim.Name, object_patch.WithSubresource("/status"))
 	}

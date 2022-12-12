@@ -143,6 +143,29 @@ spec:
   leaseName: ip-10-10-10-6
 status:
   phase: Bound
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineIPAddressClaim
+metadata:
+  name: vm8
+  namespace: ns1
+spec:
+  static: false
+  address: 10.10.10.8
+  leaseName: ip-10-10-10-8
+status:
+  phase: Bound
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineIPAddressLease
+metadata:
+  name: ip-10-10-10-8
+spec:
+  claimRef:
+    name: vm8
+    namespace: ns1
+status:
+  phase: Bound
 `),
 			)
 			f.RunHook()
@@ -218,6 +241,17 @@ status:
 			Expect(claim.Field(`spec.address`).String()).To(Equal("10.10.10.7"))
 			Expect(claim.Field(`status.phase`).String()).To(Equal("Bound"))
 
+			By("Should keep correct lease and claim without changes")
+			lease = f.KubernetesGlobalResource("VirtualMachineIPAddressLease", "ip-10-10-10-8")
+			Expect(lease).To(Not(BeEmpty()))
+			Expect(lease.Field(`spec.claimRef.name`).String()).To(Equal("vm8"))
+			Expect(lease.Field(`spec.claimRef.namespace`).String()).To(Equal("ns1"))
+			Expect(lease.Field(`status.phase`).String()).To(Equal("Bound"))
+			claim = f.KubernetesResource("VirtualMachineIPAddressClaim", "ns1", "vm8")
+			Expect(claim).To(Not(BeEmpty()))
+			Expect(claim.Field(`spec.leaseName`).String()).To(Equal("ip-10-10-10-8"))
+			Expect(claim.Field(`spec.address`).String()).To(Equal("10.10.10.8"))
+			Expect(claim.Field(`status.phase`).String()).To(Equal("Bound"))
 		})
 	})
 
