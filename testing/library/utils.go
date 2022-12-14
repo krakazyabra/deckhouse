@@ -19,6 +19,7 @@ package library
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -53,15 +54,26 @@ func GetModulesImagesTags(modulePath string) (map[string]interface{}, error) {
 }
 
 func getModulesImagesTagsFromLocalPath(modulePath string) (map[string]interface{}, error) {
-	var tags map[string]interface{}
+	var tmpTags map[string]map[string]map[string]string
 
 	imageTagsRaw, err := os.ReadFile(filepath.Join(filepath.Dir(modulePath), "images_tags.json"))
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(imageTagsRaw, &tags)
+	err = json.Unmarshal(imageTagsRaw, &tmpTags)
 	if err != nil {
 		return nil, err
+	}
+
+	tags := make(map[string]interface{})
+
+	for mainModule, s := range tmpTags {
+		subTags := map[string]string{}
+
+		for subModule, s1 := range s {
+			subTags[subModule] = fmt.Sprintf("%s@%s", s1["tag"], s1["sha256"])
+		}
+		tags[mainModule] = subTags
 	}
 
 	return tags, nil
