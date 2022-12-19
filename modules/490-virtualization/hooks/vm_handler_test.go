@@ -239,8 +239,8 @@ metadata:
 
 			ipClaim := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "mysql")
 			Expect(ipClaim).To(Not(BeEmpty()))
-			Expect(d8vm.Field(`metadata.ownerReferrences`).Array()).ToNot(HaveLen(0))
-			Expect(d8vm.Field(`metadata.ownerReferrences[0].name`).String()).To(Equal("vm1"))
+			//Expect(d8vm.Field(`metadata.ownerReferrences`).Array()).ToNot(HaveLen(0))
+			//Expect(d8vm.Field(`metadata.ownerReferrences[0].name`).String()).To(Equal("vm1"))
 
 			By("should update fields for existing disk")
 			disk2 := f.KubernetesResource("VirtualMachineDisk", "default", "vm2-boot")

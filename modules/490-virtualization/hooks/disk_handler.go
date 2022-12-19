@@ -278,7 +278,7 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 		if getDataVolume(&dataVolumeSnap, disk.Namespace, "disk-"+disk.Name) != nil {
 			// DataVolume found, check and resize PVC
 			if pvc := getPVC(&pvcSnap, disk.Namespace, "disk-"+disk.Name); pvc != nil {
-				if !disk.Size.Equal(pvc.Size) { // TODO: if more
+				if disk.Size.CmpInt64(pvc.Size.Value()) == 1 {
 					patch := map[string]interface{}{"spec": map[string]interface{}{"resources": map[string]interface{}{"requests": corev1.ResourceList{
 						corev1.ResourceStorage: disk.Size,
 					}}}}
@@ -332,7 +332,7 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 					VolumeMode:       storageClass.VolumeMode,
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: disk.Size, // TODO nil check?
+							corev1.ResourceStorage: disk.Size,
 						},
 					},
 				},
