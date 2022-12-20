@@ -44,8 +44,9 @@ type VirtualMachineDiskStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:shortName={"vmd","vmdisk","vmdisks"}
-//+kubebuilder:printcolumn:JSONPath=".metadata.ownerReferences[?(@.name)] true",name=Ephemeral,type=string
-//+kubebuilder:printcolumn:JSONPath=".spec.vmName",name=VM,type=string
+//+kubebuilder:printcolumn:JSONPath=".status.ephemeral",name=Ephemeral,type=string
+//+kubebuilder:printcolumn:JSONPath=".status.vmName",name=VM,type=string
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // VirtualMachineDisk is the Schema for the virtualmachinedisks API
 type VirtualMachineDisk struct {

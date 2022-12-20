@@ -62,16 +62,17 @@ spec:
       name: ubuntu-20.04
     size: 10Gi
     storageClassName: linstor-slow
-    ephemeral: true
+    autoDelete: true
 ```
 
 В качестве источника для bootDisk, можно указать и существующий диск виртуальной машины. В этом случае он будет подключен к ней напрямую без выполнения операции клонирования.
 
-Параметр `ephemeral` позволяет определить, должен ли диск быть удалён после удаления виртуальной машины.
+Параметр `autoDelete` позволяет определить, должен ли диск быть удалён после удаления виртуальной машины.
 
 ## Назначение статического IP-адреса
 
 Для того чтобы назначить статический IP-адрес, достаточно добавить поле `staticIPAddress` с желаемым IP-адресом:
+Каждая виртуальная машина создаёт `IpAddressClaim`
 
 ```yaml
 apiVersion: deckhouse.io/v1alpha1
@@ -93,7 +94,7 @@ spec:
       name: ubuntu-20.04
     size: 10Gi
     storageClassName: linstor-slow
-    ephemeral: true
+    autoDelete: true
 ```
 
 Желаемый IP-адрес должен находиться в пределах одного из `vmCIDR` определённого в конфигурации модуля и не быть в использовании какой-либо другой виртуальной машины.
@@ -107,12 +108,10 @@ kubectl get vmip
 пример вывода команды:
 ```bash
 # kubectl get vmip
-NAME             STATIC   VM
-ip-10-10-10-0    true
-ip-10-10-10-1             vm1
-ip-10-10-10-2    true
-ip-10-10-10-88   true
-ip-10-10-10-99   true
+NAME   STATIC   VM
+vm1    false    vm1
+vm2    true     vm2
+vm2    true     vm2
 ```
 
 Для того чтобы освободить адрес, удалите ресурс `IPAddressLease`:
@@ -165,7 +164,7 @@ spec:
       name: ubuntu-20.04
     size: 10Gi
     storageClassName: linstor-slow
-    ephemeral: true
+    autoDelete: true
   diskAttachments:
   - name: mydata
     bus: virtio

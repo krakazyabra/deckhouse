@@ -19,12 +19,21 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.address
+      name: Address
+      type: string
     - jsonPath: .spec.static
       name: Static
       type: string
-    - jsonPath: .spec.vmName
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    - jsonPath: .status.vmName
       name: VM
       type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:

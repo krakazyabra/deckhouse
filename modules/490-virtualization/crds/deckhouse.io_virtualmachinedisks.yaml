@@ -20,12 +20,15 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .metadata.ownerReferences[?(@.name)] true
+    - jsonPath: .status.ephemeral
       name: Ephemeral
       type: string
-    - jsonPath: .spec.vmName
+    - jsonPath: .status.vmName
       name: VM
       type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:

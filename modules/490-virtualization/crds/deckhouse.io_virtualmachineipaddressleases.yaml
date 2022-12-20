@@ -19,12 +19,15 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.static
-      name: Static
+    - jsonPath: .spec.claimRef
+      name: Claim
       type: string
-    - jsonPath: .spec.vmName
-      name: VM
+    - jsonPath: .status.phase
+      name: Status
       type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:

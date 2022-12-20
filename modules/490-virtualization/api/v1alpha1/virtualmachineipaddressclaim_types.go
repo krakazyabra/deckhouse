@@ -38,8 +38,11 @@ type VirtualMachineIPAddressClaimStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:JSONPath=".spec.address",name=Address,type=string
 //+kubebuilder:printcolumn:JSONPath=".spec.static",name=Static,type=string
-//+kubebuilder:printcolumn:JSONPath=".spec.vmName",name=VM,type=string
+//+kubebuilder:printcolumn:JSONPath=".status.phase",name=Status,type=string
+//+kubebuilder:printcolumn:JSONPath=".status.vmName",name=VM,type=string
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 //+kubebuilder:resource:shortName={"vmip","vmips"}
 
 // VirtualMachineIPAddressClaim is the Schema for the virtualmachineipaddressleases API

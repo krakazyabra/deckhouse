@@ -342,6 +342,9 @@ func processD8VM(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) error 
 	if d8vm.Spec.DiskAttachments != nil {
 		for _, diskSource := range *d8vm.Spec.DiskAttachments {
 			disk := getDisk(&diskSnap, d8vm.Namespace, diskSource.Name)
+			if disk == nil {
+				return fmt.Errorf("disk not found: %v", disk.Name)
+			}
 			err := checkAndApplyDiskPatches(input, d8vm, disk)
 			if err != nil {
 				return err
