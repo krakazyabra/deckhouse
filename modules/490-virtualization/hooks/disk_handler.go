@@ -344,62 +344,6 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 	return nil
 }
 
-func getStorageClass(snapshot *[]go_hook.FilterResult, name string) *StorageClassSnapshot {
-	for _, dRaw := range *snapshot {
-		storageClass := dRaw.(*StorageClassSnapshot)
-		if name != "" {
-			if storageClass.Name == name {
-				return storageClass
-			}
-		} else {
-			if storageClass.DefaultStorageClass {
-				return storageClass
-			}
-		}
-	}
-	return nil
-}
-
-func getClusterImage(snapshot *[]go_hook.FilterResult, name string) *ClusterVirtualMachineImageSnapshot {
-	for _, dRaw := range *snapshot {
-		clusterImage := dRaw.(*ClusterVirtualMachineImageSnapshot)
-		if clusterImage.Name == name {
-			return clusterImage
-		}
-	}
-	return nil
-}
-
-func getDisk(snapshot *[]go_hook.FilterResult, namespace, name string) *VirtualMachineDiskSnapshot {
-	for _, dRaw := range *snapshot {
-		disk := dRaw.(*VirtualMachineDiskSnapshot)
-		if disk.Namespace == namespace && disk.Name == name {
-			return disk
-		}
-	}
-	return nil
-}
-
-func getDataVolume(snapshot *[]go_hook.FilterResult, namespace, name string) *DataVolumeSnapshot {
-	for _, dRaw := range *snapshot {
-		dataVolume := dRaw.(*DataVolumeSnapshot)
-		if dataVolume.Namespace == namespace && dataVolume.Name == name {
-			return dataVolume
-		}
-	}
-	return nil
-}
-
-func getPVC(snapshot *[]go_hook.FilterResult, namespace, name string) *PVCSnapshot {
-	for _, dRaw := range *snapshot {
-		pvc := dRaw.(*PVCSnapshot)
-		if pvc.Namespace == namespace && pvc.Name == name {
-			return pvc
-		}
-	}
-	return nil
-}
-
 func resolveDataVolumeSource(diskSnap, clusterImageSnap, dataVolumeSnap *[]go_hook.FilterResult, source *v1alpha1.TypedObjectReference) (*cdiv1.DataVolumeSource, error) {
 	if source == nil {
 		return &cdiv1.DataVolumeSource{Blank: &cdiv1.DataVolumeBlankImage{}}, nil

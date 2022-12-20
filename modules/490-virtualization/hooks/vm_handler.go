@@ -529,36 +529,6 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 	return nil
 }
 
-func getKubevirtVM(snapshot *[]go_hook.FilterResult, namespace, name string) *virtv1.VirtualMachine {
-	for _, dRaw := range *snapshot {
-		vm := dRaw.(*virtv1.VirtualMachine)
-		if vm.Namespace == namespace && vm.Name == name {
-			return vm
-		}
-	}
-	return nil
-}
-
-func getD8VM(snapshot *[]go_hook.FilterResult, namespace, name string) *v1alpha1.VirtualMachine {
-	for _, dRaw := range *snapshot {
-		vm := dRaw.(*v1alpha1.VirtualMachine)
-		if vm.Namespace == namespace && vm.Name == name {
-			return vm
-		}
-	}
-	return nil
-}
-
-func getIPClaim(snapshot *[]go_hook.FilterResult, namespace, name string) *VirtualMachineIPAddressClaimSnapshot {
-	for _, dRaw := range *snapshot {
-		claim := dRaw.(*VirtualMachineIPAddressClaimSnapshot)
-		if claim.Namespace == namespace && claim.Name == name {
-			return claim
-		}
-	}
-	return nil
-}
-
 func checkAndApplyDiskPatches(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine, disk *VirtualMachineDiskSnapshot) error {
 	if disk.VMName != "" && disk.VMName != d8vm.Name {
 		return fmt.Errorf("disk already attached to another VirtualMachine: %v", disk.VMName)

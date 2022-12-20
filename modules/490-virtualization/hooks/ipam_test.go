@@ -52,8 +52,8 @@ kind: VirtualMachineIPAddressClaim
 metadata:
   name: vm1
   namespace: ns1
-spec:
-  static: true
+#spec:
+#	static: true
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachineIPAddressClaim
@@ -186,6 +186,7 @@ status:
 			Expect(claim).To(Not(BeEmpty()))
 			Expect(claim.Field(`spec.leaseName`).String()).To(Equal("ip-10-10-10-0"))
 			Expect(claim.Field(`spec.address`).String()).To(Equal("10.10.10.0"))
+			Expect(claim.Field(`spec.static`).Bool()).To(BeTrue())
 			Expect(claim.Field(`status.phase`).String()).To(Equal("Bound"))
 
 			By("Should create and assign lease to non-static IP address claim")
@@ -208,9 +209,9 @@ status:
 			Expect(lease.Field(`status.phase`).String()).To(Equal("Bound"))
 			claim = f.KubernetesResource("VirtualMachineIPAddressClaim", "ns1", "vm3")
 			Expect(claim).To(Not(BeEmpty()))
+			Expect(claim.Field(`status.phase`).String()).To(Equal("Bound"))
 			Expect(claim.Field(`spec.leaseName`).String()).To(Equal("ip-10-10-10-2"))
 			Expect(claim.Field(`spec.address`).String()).To(Equal("10.10.10.2"))
-			Expect(claim.Field(`status.phase`).String()).To(Equal("Bound"))
 
 			By("Should remove lease without IP address claim with missing claimRef")
 			lease = f.KubernetesGlobalResource("VirtualMachineIPAddressLease", "ip-10-10-10-4")
@@ -231,6 +232,8 @@ status:
 
 			By("Should allocate a new lease and fix wrong claim fields with different address specified")
 			lease = f.KubernetesGlobalResource("VirtualMachineIPAddressLease", "ip-10-10-10-6")
+			Expect(lease).To(BeEmpty())
+			lease = f.KubernetesGlobalResource("VirtualMachineIPAddressLease", "ip-10-10-10-7")
 			Expect(lease).To(Not(BeEmpty()))
 			Expect(lease.Field(`spec.claimRef.name`).String()).To(Equal("vm7"))
 			Expect(lease.Field(`spec.claimRef.namespace`).String()).To(Equal("ns1"))
