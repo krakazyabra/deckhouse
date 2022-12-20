@@ -130,7 +130,6 @@ func applyVirtualMachineDisksFilter(obj *unstructured.Unstructured) (go_hook.Fil
 //   This hook converts Deckhouse VirtualMachines (top-level abstraction) to KubeVirt VirtualMachines.
 //   Every Deckhouse VirtualMachine represents KubeVirt VirtualMachne with attached DataVolumes.
 //   For the boot disk this hook creates VirtualMachineDisk to provision DataVolume out of specific image source.
-
 func handleVMs(input *go_hook.HookInput) error {
 	// KubeVirt manages it's own CRDs, so we need to wait for them before starting the watch
 	if vmHandlerHookConfig.Kubernetes[0].Kind == "" {
@@ -166,244 +165,27 @@ func handleVMs(input *go_hook.HookInput) error {
 
 	for _, sRaw := range deckhouseVMSnap {
 		d8vm := sRaw.(*v1alpha1.VirtualMachine)
-
-		// Handle boot disk
-		var bootVirtualMachineDiskName string
-		if d8vm.Spec.BootDisk != nil {
-			bootVirtualMachineDiskName := d8vm.Spec.BootDisk.Name
-			var disk *VirtualMachineDiskSnapshot
-
-			switch d8vm.Spec.BootDisk.Source.Kind {
-			case "ClusterVirtualMachineImage":
-				if bootVirtualMachineDiskName == "" {
-					bootVirtualMachineDiskName = d8vm.Name + "-boot"
-				}
-				ownerReferences := []v1.OwnerReference{}
-				if d8vm.Spec.BootDisk.AutoDelete {
-					ownerReferences = []v1.OwnerReference{{
-						APIVersion:         gv,
-						BlockOwnerDeletion: pointer.Bool(true),
-						Controller:         pointer.Bool(true),
-						Kind:               "VirtualMachine",
-						Name:               d8vm.Name,
-						UID:                d8vm.UID,
-					}}
-				}
-
-				disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
-				if disk != nil {
-					// Disk found
-					// ensure size is set correctly
-					if !disk.Size.Equal(d8vm.Spec.BootDisk.Size) {
-						patch := map[string]interface{}{"spec": map[string]interface{}{"size": d8vm.Spec.BootDisk.Size.String()}}
-						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, bootVirtualMachineDiskName)
-					}
-					// ensure ephemeral is set
-					patchStatus := map[string]interface{}{}
-					if d8vm.Spec.BootDisk.AutoDelete != disk.Ephemeral {
-						patchStatus["ephemeral"] = d8vm.Spec.BootDisk.AutoDelete
-					}
-					if d8vm.Name != disk.VMName {
-						patchStatus["vmName"] = d8vm.Name
-					}
-					if len(patchStatus) != 0 {
-						patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
-						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName)
-						patch = map[string]interface{}{"status": patchStatus}
-						input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
-					}
-				} else {
-					// Disk not found, create a new VirtualMachineDisk
-					disk := &v1alpha1.VirtualMachineDisk{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "VirtualMachineDisk",
-							APIVersion: gv,
-						},
-						ObjectMeta: v1.ObjectMeta{
-							Name:            bootVirtualMachineDiskName,
-							Namespace:       d8vm.Namespace,
-							OwnerReferences: ownerReferences,
-						},
-						Spec: v1alpha1.VirtualMachineDiskSpec{
-							StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
-							Size:             d8vm.Spec.BootDisk.Size,
-							Source:           d8vm.Spec.BootDisk.Source,
-						},
-					}
-					input.PatchCollector.Create(disk)
-					patch := map[string]interface{}{"status": map[string]interface{}{"vmName": d8vm.Name, "ephemeral": d8vm.Spec.BootDisk.AutoDelete}}
-					input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
-				}
-			case "VirtualMachineImage":
-				// TODO handle namespaced VirtualMachineImage
-				return fmt.Errorf("Not implemented")
-
-			default:
-				input.LogEntry.Warnln("Unknown source kind")
-			}
-
-			if disk != nil {
-				err := checkAndApplyDiskPatches(input, d8vm, disk)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		// handle other disks
-		if d8vm.Spec.DiskAttachments != nil {
-			for _, diskSource := range *d8vm.Spec.DiskAttachments {
-				disk := getDisk(&diskSnap, d8vm.Namespace, diskSource.Name)
-				err := checkAndApplyDiskPatches(input, d8vm, disk)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		var ipClaimName string
-		if d8vm.Spec.IPAddressClaimName != nil {
-			ipClaimName = *d8vm.Spec.IPAddressClaimName
-		} else {
-			ipClaimName = d8vm.Name
-		}
-		ipClaim := getIPClaim(&ipClaimSnap, d8vm.Namespace, ipClaimName)
-
-		if ipClaim == nil {
-			// Claim is not found, create a new one
-			claim := &v1alpha1.VirtualMachineIPAddressClaim{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "VirtualMachineIPAddressClaim",
-					APIVersion: gv,
-				},
-				ObjectMeta: v1.ObjectMeta{
-					Name:      ipClaimName,
-					Namespace: d8vm.Namespace,
-					OwnerReferences: []v1.OwnerReference{{
-						APIVersion:         gv,
-						BlockOwnerDeletion: pointer.Bool(true),
-						Controller:         pointer.Bool(true),
-						Kind:               "VirtualMachine",
-						Name:               d8vm.Name,
-						UID:                d8vm.UID,
-					}},
-				},
-				Spec: v1alpha1.VirtualMachineIPAddressClaimSpec{
-					Static: pointer.Bool(false),
-				},
-			}
-			input.PatchCollector.Create(claim)
-			continue
-		}
-
-		if ipClaim.Phase != "Bound" || (ipClaim.VMName != "" && ipClaim.VMName != d8vm.Name) {
-			// IPAddressClaim is not in valid state, nothing to do
-			if d8vm.Status.Phase != "ErrorIPNotFound" {
-				patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotFound"}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
-			}
-			continue
-		}
-		if ipClaim.Address == "" {
-			// IPAddressClaim is not assigned by IPAM, nothing to do
-			if d8vm.Status.Phase != "ErrorIPNotAssigned" {
-				patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotAssigned"}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
-			}
-			continue
-		}
-
-		// handle KubeVirt VirtualMachine
-		kvvm := getKubevirtVM(&kubevirtVMSnap, d8vm.Namespace, d8vm.Name)
-		if kvvm != nil {
-			// KubeVirt VirtualMachine found
-			apply := func(u *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-				vm := &virtv1.VirtualMachine{}
-				err := sdk.FromUnstructured(u, vm)
-				if err != nil {
-					return nil, err
-				}
-				err = setVMFields(d8vm, vm, ipClaim.Address, bootVirtualMachineDiskName)
-				if err != nil {
-					return nil, err
-				}
-				return sdk.ToUnstructured(&vm)
-			}
-			input.PatchCollector.Filter(apply, "kubevirt.io/v1", "VirtualMachine", d8vm.Namespace, d8vm.Name)
-		} else {
-			// KubeVirt VirtualMachine not found, needs to create a new one
-			kvvm = &virtv1.VirtualMachine{}
-			err := setVMFields(d8vm, kvvm, ipClaim.Address, bootVirtualMachineDiskName)
-			if err != nil {
-				return err
-			}
-			input.PatchCollector.Create(kvvm)
-		}
-
-		// Update status of IPAddressClaim
-		if ipClaim.VMName != d8vm.Name {
-			patch := map[string]interface{}{"status": map[string]interface{}{"vmName": d8vm.Name}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name, object_patch.WithSubresource("/status"))
-		}
-
-		// Update status of VirtualMachine
-		patchStatus := map[string]interface{}{}
-		if d8vm.Status.IPAddress != ipClaim.Address {
-			patchStatus["ipAddress"] = ipClaim.Address
-		}
-		if string(d8vm.Status.Phase) != string(kvvm.Status.PrintableStatus) {
-			patchStatus["phase"] = kvvm.Status.PrintableStatus
-		}
-		if len(patchStatus) != 0 {
-			patch := map[string]interface{}{"status": patchStatus}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
+		if err := processD8VM(input, d8vm); err != nil {
+			return err
 		}
 	}
 
 	// Disks cleanup loop
 	for _, sRaw := range diskSnap {
 		disk := sRaw.(*VirtualMachineDiskSnapshot)
-		if !disk.Ephemeral && disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
-			// Remove vmName
-			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
-		}
+		checkAndCleanupDisk(input, disk)
 	}
 
 	// IPAddressClaims cleanup loop
 	for _, sRaw := range ipClaimSnap {
 		ipClaim := sRaw.(*VirtualMachineIPAddressClaimSnapshot)
-		if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
-			// Remove vmName
-			patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
-		}
-
-		// Handle OwnerReference
-		if ipClaim.Static != nil && *ipClaim.Static && ipClaim.OwnerReferenceIsSet {
-			patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": nil}}
-			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
-		}
-		if ipClaim.Static != nil && !*ipClaim.Static && !ipClaim.OwnerReferenceIsSet && ipClaim.VMName != "" {
-			if d8vm := getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName); d8vm != nil {
-				ownerReferences := []v1.OwnerReference{{
-					APIVersion:         gv,
-					BlockOwnerDeletion: pointer.Bool(true),
-					Controller:         pointer.Bool(true),
-					Kind:               "VirtualMachine",
-					Name:               d8vm.Name,
-					UID:                d8vm.UID,
-				}}
-				patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
-			}
-		}
+		checkAndCleanupIPAddressClaim(input, ipClaim)
 	}
 
 	return nil
 }
 
-func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAddress string, bootVirtualMachineDiskName string) error {
+func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAddress string) error {
 	vm.TypeMeta = metav1.TypeMeta{
 		Kind:       "VirtualMachine",
 		APIVersion: "kubevirt.io/v1",
@@ -452,24 +234,6 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 							Macvtap: &virtv1.InterfaceMacvtap{},
 						},
 					}},
-					Disks: []virtv1.Disk{
-						{
-							Name: "boot",
-							DiskDevice: virtv1.DiskDevice{
-								Disk: &virtv1.DiskTarget{
-									Bus: "virtio",
-								},
-							},
-						},
-						{
-							Name: "cloudinit",
-							DiskDevice: virtv1.DiskDevice{
-								Disk: &virtv1.DiskTarget{
-									Bus: "virtio",
-								},
-							},
-						},
-					},
 				},
 				Resources: virtv1.ResourceRequirements{
 					Requests: d8vm.Spec.Resources,
@@ -480,27 +244,53 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 				NetworkSource: virtv1.NetworkSource{
 					Pod: &virtv1.PodNetwork{},
 				}}},
-			Volumes: []virtv1.Volume{
-				{
-					Name: "boot",
-					VolumeSource: virtv1.VolumeSource{
-						DataVolume: &virtv1.DataVolumeSource{
-							Name:         "disk-" + bootVirtualMachineDiskName,
-							Hotpluggable: false,
-						},
-					},
-				},
-				{
-					Name: "cloudinit",
-					VolumeSource: virtv1.VolumeSource{
-						CloudInitNoCloud: &virtv1.CloudInitNoCloudSource{
-							// TODO handle cloudinit from secret
-							UserData: fmt.Sprintf("#cloud-config\n%s", cloudInitRaw),
-						},
-					},
+		},
+	}
+
+	// attach boot disk
+	if d8vm.Spec.BootDisk != nil {
+		bootVirtualMachineDiskName := d8vm.Spec.BootDisk.Name
+		if bootVirtualMachineDiskName == "" {
+			bootVirtualMachineDiskName = d8vm.Name + "-boot"
+		}
+		vm.Spec.Template.Spec.Domain.Devices.Disks = append(vm.Spec.Template.Spec.Domain.Devices.Disks, virtv1.Disk{
+			Name: "boot",
+			DiskDevice: virtv1.DiskDevice{
+				Disk: &virtv1.DiskTarget{
+					Bus: "virtio",
 				},
 			},
-		},
+		})
+		vm.Spec.Template.Spec.Volumes = append(vm.Spec.Template.Spec.Volumes, virtv1.Volume{
+			Name: "boot",
+			VolumeSource: virtv1.VolumeSource{
+				DataVolume: &virtv1.DataVolumeSource{
+					Name:         "disk-" + bootVirtualMachineDiskName,
+					Hotpluggable: false,
+				},
+			},
+		})
+	}
+
+	// attach cloud-init
+	if d8vm.Spec.CloudInit != nil {
+		vm.Spec.Template.Spec.Domain.Devices.Disks = append(vm.Spec.Template.Spec.Domain.Devices.Disks, virtv1.Disk{
+			Name: "cloudinit",
+			DiskDevice: virtv1.DiskDevice{
+				Disk: &virtv1.DiskTarget{
+					Bus: "virtio",
+				},
+			},
+		})
+		vm.Spec.Template.Spec.Volumes = append(vm.Spec.Template.Spec.Volumes, virtv1.Volume{
+			Name: "cloudinit",
+			VolumeSource: virtv1.VolumeSource{
+				CloudInitNoCloud: &virtv1.CloudInitNoCloudSource{
+					// TODO handle cloudinit from secret
+					UserData: fmt.Sprintf("#cloud-config\n%s", cloudInitRaw),
+				},
+			},
+		})
 	}
 
 	// attach extra disks
@@ -536,6 +326,272 @@ func checkAndApplyDiskPatches(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMa
 	if disk.VMName != d8vm.Name {
 		patch := map[string]interface{}{"spec": map[string]string{"vmName": d8vm.Name}}
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+	}
+	return nil
+}
+
+func processD8VM(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) error {
+	diskSnap := input.Snapshots[vmDisksSnapshot]
+
+	// Handle boot disk
+	if err := processVMBootDisk(input, d8vm); err != nil {
+		return err
+	}
+
+	// handle other disks
+	if d8vm.Spec.DiskAttachments != nil {
+		for _, diskSource := range *d8vm.Spec.DiskAttachments {
+			disk := getDisk(&diskSnap, d8vm.Namespace, diskSource.Name)
+			err := checkAndApplyDiskPatches(input, d8vm, disk)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Handle IPAddressClaim
+	ipAddress := processIPAddressClaim(input, d8vm)
+	if ipAddress == "" {
+		// IP is not assigned yet
+		return nil
+	}
+
+	// handle KubeVirt VirtualMachine
+	if err := processKubevirtVM(input, d8vm, ipAddress); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkAndCleanupDisk(input *go_hook.HookInput, disk *VirtualMachineDiskSnapshot) {
+	deckhouseVMSnap := input.Snapshots[deckhouseVMSnapshot]
+	if !disk.Ephemeral && disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
+		// Remove vmName
+		patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+	}
+}
+
+func checkAndCleanupIPAddressClaim(input *go_hook.HookInput, ipClaim *VirtualMachineIPAddressClaimSnapshot) {
+	deckhouseVMSnap := input.Snapshots[deckhouseVMSnapshot]
+	if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
+		// Remove vmName
+		patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+	}
+
+	// Handle OwnerReference
+	if ipClaim.Static != nil && *ipClaim.Static && ipClaim.OwnerReferenceIsSet {
+		patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": nil}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+	}
+	if ipClaim.Static != nil && !*ipClaim.Static && !ipClaim.OwnerReferenceIsSet && ipClaim.VMName != "" {
+		if d8vm := getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName); d8vm != nil {
+			ownerReferences := []v1.OwnerReference{{
+				APIVersion:         gv,
+				BlockOwnerDeletion: pointer.Bool(true),
+				Controller:         pointer.Bool(true),
+				Kind:               "VirtualMachine",
+				Name:               d8vm.Name,
+				UID:                d8vm.UID,
+			}}
+			patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+		}
+	}
+}
+
+func processVMBootDisk(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) error {
+	if d8vm.Spec.BootDisk == nil {
+		return nil
+	}
+
+	diskSnap := input.Snapshots[vmDisksSnapshot]
+
+	bootVirtualMachineDiskName := d8vm.Spec.BootDisk.Name
+	var disk *VirtualMachineDiskSnapshot
+
+	switch d8vm.Spec.BootDisk.Source.Kind {
+	case "ClusterVirtualMachineImage":
+		if bootVirtualMachineDiskName == "" {
+			bootVirtualMachineDiskName = d8vm.Name + "-boot"
+		}
+		ownerReferences := []v1.OwnerReference{}
+		if d8vm.Spec.BootDisk.AutoDelete {
+			ownerReferences = []v1.OwnerReference{{
+				APIVersion:         gv,
+				BlockOwnerDeletion: pointer.Bool(true),
+				Controller:         pointer.Bool(true),
+				Kind:               "VirtualMachine",
+				Name:               d8vm.Name,
+				UID:                d8vm.UID,
+			}}
+		}
+
+		disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
+
+		if disk != nil {
+			// Disk found
+			// ensure size is set correctly
+			if !disk.Size.Equal(d8vm.Spec.BootDisk.Size) {
+				patch := map[string]interface{}{"spec": map[string]interface{}{"size": d8vm.Spec.BootDisk.Size.String()}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, bootVirtualMachineDiskName)
+			}
+			// ensure ephemeral is set
+			patchStatus := map[string]interface{}{}
+			if d8vm.Spec.BootDisk.AutoDelete != disk.Ephemeral {
+				patchStatus["ephemeral"] = d8vm.Spec.BootDisk.AutoDelete
+			}
+			if d8vm.Name != disk.VMName {
+				patchStatus["vmName"] = d8vm.Name
+			}
+			if len(patchStatus) != 0 {
+				patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName)
+				patch = map[string]interface{}{"status": patchStatus}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
+			}
+		} else {
+			// Disk not found, create a new VirtualMachineDisk
+			disk := &v1alpha1.VirtualMachineDisk{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "VirtualMachineDisk",
+					APIVersion: gv,
+				},
+				ObjectMeta: v1.ObjectMeta{
+					Name:            bootVirtualMachineDiskName,
+					Namespace:       d8vm.Namespace,
+					OwnerReferences: ownerReferences,
+				},
+				Spec: v1alpha1.VirtualMachineDiskSpec{
+					StorageClassName: d8vm.Spec.BootDisk.StorageClassName,
+					Size:             d8vm.Spec.BootDisk.Size,
+					Source:           d8vm.Spec.BootDisk.Source,
+				},
+			}
+			input.PatchCollector.Create(disk)
+			patch := map[string]interface{}{"status": map[string]interface{}{"vmName": d8vm.Name, "ephemeral": d8vm.Spec.BootDisk.AutoDelete}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
+		}
+	case "VirtualMachineImage":
+		// TODO handle namespaced VirtualMachineImage
+		return fmt.Errorf("Not implemented")
+
+	default:
+		input.LogEntry.Warnln("Unknown source kind")
+	}
+
+	if disk != nil {
+		err := checkAndApplyDiskPatches(input, d8vm, disk)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func processIPAddressClaim(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) string {
+	ipClaimSnap := input.Snapshots[ipClaimsSnapshot]
+	var ipClaimName string
+	if d8vm.Spec.IPAddressClaimName != nil {
+		ipClaimName = *d8vm.Spec.IPAddressClaimName
+	} else {
+		ipClaimName = d8vm.Name
+	}
+	ipClaim := getIPClaim(&ipClaimSnap, d8vm.Namespace, ipClaimName)
+
+	if ipClaim == nil {
+		// Claim is not found, create a new one
+		claim := &v1alpha1.VirtualMachineIPAddressClaim{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "VirtualMachineIPAddressClaim",
+				APIVersion: gv,
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      ipClaimName,
+				Namespace: d8vm.Namespace,
+				OwnerReferences: []v1.OwnerReference{{
+					APIVersion:         gv,
+					BlockOwnerDeletion: pointer.Bool(true),
+					Controller:         pointer.Bool(true),
+					Kind:               "VirtualMachine",
+					Name:               d8vm.Name,
+					UID:                d8vm.UID,
+				}},
+			},
+			Spec: v1alpha1.VirtualMachineIPAddressClaimSpec{
+				Static: pointer.Bool(false),
+			},
+		}
+		input.PatchCollector.Create(claim)
+		return ""
+	}
+
+	if ipClaim.Phase != "Bound" || (ipClaim.VMName != "" && ipClaim.VMName != d8vm.Name) {
+		// IPAddressClaim is not in valid state, nothing to do
+		if d8vm.Status.Phase != "ErrorIPNotFound" {
+			patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotFound"}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
+		}
+		return ""
+	}
+	if ipClaim.Address == "" {
+		// IPAddressClaim is not assigned by IPAM, nothing to do
+		if d8vm.Status.Phase != "ErrorIPNotAssigned" {
+			patch := map[string]interface{}{"status": map[string]string{"phase": "ErrorIPNotAssigned"}}
+			input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
+		}
+		return ""
+	}
+	// Update status of IPAddressClaim
+	if ipClaim.VMName != d8vm.Name {
+		patch := map[string]interface{}{"status": map[string]interface{}{"vmName": d8vm.Name}}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name, object_patch.WithSubresource("/status"))
+	}
+	return ipClaim.Address
+}
+
+func processKubevirtVM(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine, ipAddress string) error {
+	kubevirtVMSnap := input.Snapshots[kubevirtVMSnapshot]
+	kvvm := getKubevirtVM(&kubevirtVMSnap, d8vm.Namespace, d8vm.Name)
+	if kvvm != nil {
+		// KubeVirt VirtualMachine found
+		apply := func(u *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+			vm := &virtv1.VirtualMachine{}
+			err := sdk.FromUnstructured(u, vm)
+			if err != nil {
+				return nil, err
+			}
+			err = setVMFields(d8vm, vm, ipAddress)
+			if err != nil {
+				return nil, err
+			}
+			return sdk.ToUnstructured(&vm)
+		}
+		input.PatchCollector.Filter(apply, "kubevirt.io/v1", "VirtualMachine", d8vm.Namespace, d8vm.Name)
+	} else {
+		// KubeVirt VirtualMachine not found, needs to create a new one
+		kvvm = &virtv1.VirtualMachine{}
+		err := setVMFields(d8vm, kvvm, ipAddress)
+		if err != nil {
+			return err
+		}
+		input.PatchCollector.Create(kvvm)
+	}
+
+	// Update status of VirtualMachine
+	patchStatus := map[string]interface{}{}
+	if d8vm.Status.IPAddress != ipAddress {
+		patchStatus["ipAddress"] = ipAddress
+	}
+	if string(d8vm.Status.Phase) != string(kvvm.Status.PrintableStatus) {
+		patchStatus["phase"] = kvvm.Status.PrintableStatus
+	}
+	if len(patchStatus) != 0 {
+		patch := map[string]interface{}{"status": patchStatus}
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachine", d8vm.Namespace, d8vm.Name, object_patch.WithSubresource("/status"))
 	}
 	return nil
 }
