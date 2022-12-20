@@ -119,8 +119,6 @@ type IPAM struct {
 	allocatedIPs map[string]struct{}
 	parsedCIDRs  []*net.IPNet
 	input        *go_hook.HookInput
-	leaseSnap    []go_hook.FilterResult
-	claimSnap    []go_hook.FilterResult
 }
 
 // doIPAM
@@ -135,25 +133,33 @@ type IPAM struct {
 func doIPAM(input *go_hook.HookInput) error {
 	ipam := IPAM{
 		input:        input,
-		leaseSnap:    input.Snapshots[ipLeasesSnapshot],
-		claimSnap:    input.Snapshots[ipClaimsSnapshot],
 		allocatedIPs: make(map[string]struct{}),
 	}
-	if len(ipam.claimSnap) == 0 && len(ipam.leaseSnap) == 0 {
+
+	leaseSnap := input.Snapshots[ipLeasesSnapshot]
+	claimSnap := input.Snapshots[ipClaimsSnapshot]
+
+	if len(claimSnap) == 0 && len(leaseSnap) == 0 {
 		input.LogEntry.Warnln("VirtualMachineIPAddressLease and VirtualMachineIPAddressClaim not found. Skip")
 		return nil
 	}
 
-	if err := ipam.loadAndProcessIPAddressLeases(); err != nil {
-		return err
+	for _, sRaw := range leaseSnap {
+		lease := sRaw.(*VirtualMachineIPAddressLeaseSnapshot)
+		if err := ipam.loadAndProcessIPAddressLease(lease); err != nil {
+			return err
+		}
 	}
 
 	if err := ipam.loadCIDRsFromConfig(); err != nil {
 		return err
 	}
 
-	if err := ipam.processIPAddressClaims(); err != nil {
-		return err
+	for _, sRaw := range claimSnap {
+		claim := sRaw.(*VirtualMachineIPAddressClaimSnapshot)
+		if err := ipam.processIPAddressClaim(claim); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -308,7 +314,8 @@ func (ipam *IPAM) claimIsValidForLease(lease *VirtualMachineIPAddressLeaseSnapsh
 		return true
 	}
 	// If old claim is removed, we still can consider it as correct
-	if getIPClaim(&ipam.claimSnap, lease.ClaimNamespace, lease.ClaimName) == nil {
+	claimSnap := ipam.input.Snapshots[ipClaimsSnapshot]
+	if getIPClaim(&claimSnap, lease.ClaimNamespace, lease.ClaimName) == nil {
 		return true
 	}
 	return false
@@ -326,24 +333,22 @@ func (ipam *IPAM) handleConflictedClaim(claim *VirtualMachineIPAddressClaimSnaps
 	}
 }
 
-func (ipam *IPAM) loadAndProcessIPAddressLeases() error {
-	for _, sRaw := range ipam.leaseSnap {
-		lease := sRaw.(*VirtualMachineIPAddressLeaseSnapshot)
-		var claim *VirtualMachineIPAddressClaimSnapshot
-		if lease.ClaimName != "" {
-			claim = getIPClaim(&ipam.claimSnap, lease.ClaimNamespace, lease.ClaimName)
-		}
-		if claim == nil || (claim.Address != "" && claim.Address != lease.Address) {
-			// No claims found, we can remove lease
-			ipam.input.PatchCollector.Delete(gv, "VirtualMachineIPAddressLease", "", lease.Name)
-			continue
-		}
-		// Allocate IP address
-		if _, ok := ipam.allocatedIPs[lease.Address]; ok {
-			return fmt.Errorf("Duplicated IP address lease %s", lease.Address)
-		}
-		ipam.allocatedIPs[lease.Address] = struct{}{}
+func (ipam *IPAM) loadAndProcessIPAddressLease(lease *VirtualMachineIPAddressLeaseSnapshot) error {
+	var claim *VirtualMachineIPAddressClaimSnapshot
+	if lease.ClaimName != "" {
+		claimSnap := ipam.input.Snapshots[ipClaimsSnapshot]
+		claim = getIPClaim(&claimSnap, lease.ClaimNamespace, lease.ClaimName)
 	}
+	if claim == nil || (claim.Address != "" && claim.Address != lease.Address) {
+		// No claims found, we can remove lease
+		ipam.input.PatchCollector.Delete(gv, "VirtualMachineIPAddressLease", "", lease.Name)
+		return nil
+	}
+	// Allocate IP address
+	if _, ok := ipam.allocatedIPs[lease.Address]; ok {
+		return fmt.Errorf("Duplicated IP address lease %s", lease.Address)
+	}
+	ipam.allocatedIPs[lease.Address] = struct{}{}
 	return nil
 }
 
@@ -359,47 +364,44 @@ func (ipam *IPAM) loadCIDRsFromConfig() error {
 	return nil
 }
 
-func (ipam *IPAM) processIPAddressClaims() error {
-	for _, sRaw := range ipam.claimSnap {
-		claim := sRaw.(*VirtualMachineIPAddressClaimSnapshot)
+func (ipam *IPAM) processIPAddressClaim(claim *VirtualMachineIPAddressClaimSnapshot) error {
+	// Check for already allocated IP address
+	_, alreadyAllocated := ipam.allocatedIPs[claim.Address]
+	if alreadyAllocated && claim.Phase != "Bound" {
+		ipam.handleConflictedClaim(claim)
+		// Stop processing conflicting claim
+		return nil
+	}
 
-		// Check for already allocated IP address
-		_, alreadyAllocated := ipam.allocatedIPs[claim.Address]
-		if alreadyAllocated && claim.Phase != "Bound" {
+	var lease *VirtualMachineIPAddressLeaseSnapshot
+	if claim.LeaseName != "" {
+		leaseSnap := ipam.input.Snapshots[ipLeasesSnapshot]
+		lease = getIPLease(&leaseSnap, claim.LeaseName)
+		if claim.Address != "" && claim.Address != lease.Address {
+			// Wrong lease specified
+			lease = nil
+		}
+	}
+
+	if lease == nil {
+		// Lease not found, create a new one
+		lease = ipam.createLeaseForClaim(claim)
+		if lease == nil {
+			// Lease creation failed
+			return nil
+		}
+	} else {
+		// Lease found
+		if !ipam.claimIsValidForLease(lease, claim) {
 			ipam.handleConflictedClaim(claim)
 			// Stop processing conflicting claim
-			continue
+			return nil
 		}
-
-		var lease *VirtualMachineIPAddressLeaseSnapshot
-		if claim.LeaseName != "" {
-			lease = getIPLease(&ipam.leaseSnap, claim.LeaseName)
-			if claim.Address != "" && claim.Address != lease.Address {
-				// Wrong lease specified
-				lease = nil
-			}
-		}
-
-		if lease == nil {
-			// Lease not found, create a new one
-			lease = ipam.createLeaseForClaim(claim)
-			if lease == nil {
-				// Lease creation failed
-				continue
-			}
-		} else {
-			// Lease found
-			if !ipam.claimIsValidForLease(lease, claim) {
-				ipam.handleConflictedClaim(claim)
-				// Stop processing conflicting claim
-				continue
-			}
-			ipam.patchLeaseForClaim(lease, claim)
-		}
-
-		ipam.patchLeaseStatusForClaim(lease, claim)
-		ipam.patchClaimForLease(lease, claim)
+		ipam.patchLeaseForClaim(lease, claim)
 	}
+
+	ipam.patchLeaseStatusForClaim(lease, claim)
+	ipam.patchClaimForLease(lease, claim)
 
 	return nil
 }
