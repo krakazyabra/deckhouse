@@ -217,6 +217,64 @@ kind: PersistentVolumeClaim
 metadata:
   name: disk-vm4-boot
   namespace: default
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineIPAddressClaim
+metadata:
+  name: vm5
+  namespace: default
+spec:
+  address: 10.10.10.10
+  leaseName: ip-10-10-10-10
+  static: true
+status:
+  phase: Bound
+  vmName: vm5
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: vm5-boot
+  namespace: default
+spec:
+  size: 10Gi
+  source:
+    kind: ClusterVirtualMachineImage
+    name: ubuntu-22.04
+  storageClassName: linstor-fast
+status:
+  ephemeral: false
+  vmName: vm5
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vm6
+  namespace: default
+spec:
+  running: true
+  resources:
+    memory: 512M
+    cpu: "1"
+  userName: admin
+  sshPublicKey: "ssh-rsa asdasdkflkasddf..."
+  bootDisk:
+    name: foo
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineDisk
+metadata:
+  name: foo
+  namespace: default
+spec:
+  size: 10Gi
+  source:
+    kind: ClusterVirtualMachineImage
+    name: ubuntu-22.04
+  storageClassName: linstor-fast
+status:
+  ephemeral: false
+  vmName: vm6
 `),
 			)
 			f.RunHook()
@@ -257,6 +315,24 @@ metadata:
 			disk4 := f.KubernetesResource("VirtualMachineDisk", "default", "vm4-boot")
 			Expect(disk4).To(Not(BeEmpty()))
 			Expect(disk4.Field(`spec.size`).String()).To(Equal("12Gi"))
+
+			By("Should release static VirtualMachineIPAddressClaim")
+			ipClaim5 := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "vm5")
+			Expect(ipClaim5).To(Not(BeEmpty()))
+			Expect(ipClaim5.Field(`status.vmName`).String()).To(BeEmpty())
+
+			By("Should release non ephemeral VirtualMachineDisk")
+			disk5 := f.KubernetesResource("VirtualMachineDisk", "default", "vm5-boot")
+			Expect(disk5).To(Not(BeEmpty()))
+			Expect(disk5.Field(`status.vmName`).String()).To(BeEmpty())
+
+			By("Should keep VirtualMachine and non ephemeral VirtualMachineDisk")
+			d8vm6 := f.KubernetesResource("VirtualMachine", "default", "vm6")
+			Expect(d8vm6).To(Not(BeEmpty()))
+
+			disk6 := f.KubernetesResource("VirtualMachineDisk", "default", "foo")
+			Expect(disk6).To(Not(BeEmpty()))
+			Expect(disk6.Field(`status.vmName`).String()).To(Equal("vm6"))
 		})
 	})
 

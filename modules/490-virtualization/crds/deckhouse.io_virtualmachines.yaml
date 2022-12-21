@@ -94,7 +94,6 @@ spec:
                     type: string
                 required:
                 - size
-                - source
                 type: object
               cloudInit:
                 description: 'Represents a cloud-init nocloud user data source. More

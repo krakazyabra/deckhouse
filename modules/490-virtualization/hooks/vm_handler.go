@@ -319,17 +319,6 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 	return nil
 }
 
-func checkAndApplyDiskPatches(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine, disk *VirtualMachineDiskSnapshot) error {
-	if disk.VMName != "" && disk.VMName != d8vm.Name {
-		return fmt.Errorf("disk already attached to another VirtualMachine: %v", disk.VMName)
-	}
-	if disk.VMName != d8vm.Name {
-		patch := map[string]interface{}{"spec": map[string]string{"vmName": d8vm.Name}}
-		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
-	}
-	return nil
-}
-
 func processD8VM(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) error {
 	diskSnap := input.Snapshots[vmDisksSnapshot]
 
@@ -345,9 +334,12 @@ func processD8VM(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) error 
 			if disk == nil {
 				return fmt.Errorf("disk not found: %v", disk.Name)
 			}
-			err := checkAndApplyDiskPatches(input, d8vm, disk)
-			if err != nil {
-				return err
+			if disk.VMName != "" && disk.VMName != d8vm.Name {
+				return fmt.Errorf("disk already attached to another VirtualMachine: %v", disk.VMName)
+			}
+			if disk.VMName != d8vm.Name {
+				patch := map[string]interface{}{"spec": map[string]string{"vmName": d8vm.Name}}
+				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 			}
 		}
 	}
@@ -409,17 +401,21 @@ func processVMBootDisk(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) 
 	if d8vm.Spec.BootDisk == nil {
 		return nil
 	}
+	if d8vm.Spec.BootDisk.Source == nil {
+		return nil
+	}
 
 	diskSnap := input.Snapshots[vmDisksSnapshot]
+	var disk *VirtualMachineDiskSnapshot
 
 	bootVirtualMachineDiskName := d8vm.Spec.BootDisk.Name
-	var disk *VirtualMachineDiskSnapshot
+	if bootVirtualMachineDiskName == "" {
+		bootVirtualMachineDiskName = d8vm.Name + "-boot"
+	}
+	disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
 
 	switch d8vm.Spec.BootDisk.Source.Kind {
 	case "ClusterVirtualMachineImage":
-		if bootVirtualMachineDiskName == "" {
-			bootVirtualMachineDiskName = d8vm.Name + "-boot"
-		}
 		ownerReferences := []v1.OwnerReference{}
 		if d8vm.Spec.BootDisk.AutoDelete {
 			ownerReferences = []v1.OwnerReference{{
@@ -432,27 +428,32 @@ func processVMBootDisk(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) 
 			}}
 		}
 
-		disk = getDisk(&diskSnap, d8vm.Namespace, bootVirtualMachineDiskName)
-
 		if disk != nil {
 			// Disk found
+			if disk.VMName != "" && disk.VMName != d8vm.Name {
+				return fmt.Errorf("disk already attached to another VirtualMachine: %v", disk.VMName)
+			}
+			patchMetadata := map[string]interface{}{}
+			patchSpec := map[string]interface{}{}
+			patchStatus := map[string]interface{}{}
 			// ensure size is set correctly
 			if !disk.Size.Equal(d8vm.Spec.BootDisk.Size) {
-				patch := map[string]interface{}{"spec": map[string]interface{}{"size": d8vm.Spec.BootDisk.Size.String()}}
-				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, bootVirtualMachineDiskName)
+				patchSpec["size"] = d8vm.Spec.BootDisk.Size.String()
 			}
 			// ensure ephemeral is set
-			patchStatus := map[string]interface{}{}
 			if d8vm.Spec.BootDisk.AutoDelete != disk.Ephemeral {
+				patchMetadata["ownerReferences"] = ownerReferences
 				patchStatus["ephemeral"] = d8vm.Spec.BootDisk.AutoDelete
 			}
 			if d8vm.Name != disk.VMName {
 				patchStatus["vmName"] = d8vm.Name
 			}
-			if len(patchStatus) != 0 {
-				patch := map[string]interface{}{"metadata": map[string]interface{}{"ownerReferences": ownerReferences}}
+			if len(patchMetadata) != 0 || len(patchSpec) != 0 {
+				patch := map[string]interface{}{"metadata": patchMetadata, "spec": patchSpec}
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName)
-				patch = map[string]interface{}{"status": patchStatus}
+			}
+			if len(patchStatus) != 0 {
+				patch := map[string]interface{}{"status": patchStatus}
 				input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", d8vm.Namespace, bootVirtualMachineDiskName, object_patch.WithSubresource("/status"))
 			}
 		} else {
@@ -483,13 +484,6 @@ func processVMBootDisk(input *go_hook.HookInput, d8vm *v1alpha1.VirtualMachine) 
 
 	default:
 		input.LogEntry.Warnln("Unknown source kind")
-	}
-
-	if disk != nil {
-		err := checkAndApplyDiskPatches(input, d8vm, disk)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
