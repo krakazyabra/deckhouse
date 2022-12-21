@@ -293,7 +293,7 @@ func handleVirtualMachineDisks(input *go_hook.HookInput) error {
 		// Lookup for storageClass
 		storageClass := getStorageClass(&storageClassSnap, disk.StorageClassName)
 		if storageClass == nil {
-			input.LogEntry.Warnln("StorageClass not found. Skip")
+			input.LogEntry.Warnf("StorageClass not found. Skip %s/%s", disk.Namespace, disk.Name)
 			continue
 		}
 

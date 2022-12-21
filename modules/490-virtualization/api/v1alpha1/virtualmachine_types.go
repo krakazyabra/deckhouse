@@ -88,6 +88,9 @@ type DiskSource struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:JSONPath=".status.ipAddress",name=IPAddress,type=string
+//+kubebuilder:printcolumn:JSONPath=".status.phase",name=Status,type=string
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 //+kubebuilder:resource:shortName={"vm","vms"}
 
 // VirtualMachine is the Schema for the virtualmachines API
