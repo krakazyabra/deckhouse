@@ -364,7 +364,7 @@ func checkAndCleanupDisk(input *go_hook.HookInput, disk *VirtualMachineDiskSnaps
 	if !disk.Ephemeral && disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
 		// Remove vmName
 		patch := map[string]interface{}{"status": map[string]interface{}{"vmName": nil}}
-		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name, object_patch.WithSubresource("/status"))
 	}
 }
 
@@ -373,7 +373,7 @@ func checkAndCleanupIPAddressClaim(input *go_hook.HookInput, ipClaim *VirtualMac
 	if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
 		// Remove vmName
 		patch := map[string]interface{}{"status": map[string]interface{}{"vmName": nil}}
-		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
+		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name, object_patch.WithSubresource("/status"))
 	}
 
 	// Handle OwnerReference

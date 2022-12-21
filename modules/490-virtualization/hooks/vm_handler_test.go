@@ -275,6 +275,21 @@ spec:
 status:
   ephemeral: false
   vmName: vm6
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vm7
+  namespace: default
+spec:
+  running: true
+  resources:
+    memory: 512M
+    cpu: "1"
+  userName: admin
+  sshPublicKey: "ssh-rsa asdasdkflkasddf..."
+  bootDisk:
+    name: foo
 `),
 			)
 			f.RunHook()
@@ -333,6 +348,10 @@ status:
 			disk6 := f.KubernetesResource("VirtualMachineDisk", "default", "foo")
 			Expect(disk6).To(Not(BeEmpty()))
 			Expect(disk6.Field(`status.vmName`).String()).To(Equal("vm6"))
+
+			By("Should not allow to run VirtualMachine with VirtualMachineDisk attached to other VirtualMachine")
+			vm7 := f.KubernetesResource("virtualmachines.kubevirt.io", "default", "vm7")
+			Expect(vm7).To(BeEmpty())
 		})
 	})
 
