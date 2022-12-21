@@ -45,6 +45,8 @@ type VirtualMachineDiskStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:shortName={"vmd","vmdisk","vmdisks"}
 //+kubebuilder:printcolumn:JSONPath=".status.ephemeral",name=Ephemeral,type=string
+//+kubebuilder:printcolumn:JSONPath=".spec.size",name=VM,type=string
+//+kubebuilder:printcolumn:JSONPath=".spec.storageClassName",name=VM,type=string
 //+kubebuilder:printcolumn:JSONPath=".status.vmName",name=VM,type=string
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

@@ -290,7 +290,6 @@ func (ipam *IPAM) patchLeaseStatusForClaim(lease *VirtualMachineIPAddressLeaseSn
 }
 
 func (ipam *IPAM) patchClaimForLease(lease *VirtualMachineIPAddressLeaseSnapshot, claim *VirtualMachineIPAddressClaimSnapshot) {
-
 	apply := func(u *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 		claimObj := &v1alpha1.VirtualMachineIPAddressClaim{}
 		err := sdk.FromUnstructured(u, claimObj)

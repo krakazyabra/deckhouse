@@ -371,7 +371,7 @@ func checkAndCleanupDisk(input *go_hook.HookInput, disk *VirtualMachineDiskSnaps
 	deckhouseVMSnap := input.Snapshots[deckhouseVMSnapshot]
 	if !disk.Ephemeral && disk.VMName != "" && getD8VM(&deckhouseVMSnap, disk.Namespace, disk.VMName) == nil {
 		// Remove vmName
-		patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+		patch := map[string]interface{}{"status": map[string]interface{}{"vmName": nil}}
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineDisk", disk.Namespace, disk.Name)
 	}
 }
@@ -380,7 +380,7 @@ func checkAndCleanupIPAddressClaim(input *go_hook.HookInput, ipClaim *VirtualMac
 	deckhouseVMSnap := input.Snapshots[deckhouseVMSnapshot]
 	if ipClaim.VMName != "" && getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName) == nil {
 		// Remove vmName
-		patch := map[string]interface{}{"status": map[string]string{"vmName": ""}}
+		patch := map[string]interface{}{"status": map[string]interface{}{"vmName": nil}}
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
 	}
 

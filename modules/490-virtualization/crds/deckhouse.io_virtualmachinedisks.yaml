@@ -23,6 +23,12 @@ spec:
     - jsonPath: .status.ephemeral
       name: Ephemeral
       type: string
+    - jsonPath: .spec.size
+      name: VM
+      type: string
+    - jsonPath: .spec.storageClassName
+      name: VM
+      type: string
     - jsonPath: .status.vmName
       name: VM
       type: string
