@@ -25,7 +25,7 @@ type VirtualMachineIPAddressClaimSpec struct {
 	// Static represents the static claim
 	//+kubebuilder:default:=true
 	//+kubebuilder:validation:Required
-	Static    *bool  `json:"static"`
+	Static    *bool  `json:"static,omitempty"`
 	LeaseName string `json:"leaseName,omitempty"`
 	Address   string `json:"address,omitempty"`
 }

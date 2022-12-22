@@ -376,7 +376,7 @@ func (ipam *IPAM) processIPAddressClaim(claim *VirtualMachineIPAddressClaimSnaps
 	if claim.LeaseName != "" {
 		leaseSnap := ipam.input.Snapshots[ipLeasesSnapshot]
 		lease = getIPLease(&leaseSnap, claim.LeaseName)
-		if claim.Address != "" && claim.Address != lease.Address {
+		if lease != nil && claim.Address != "" && claim.Address != lease.Address {
 			// Wrong lease specified
 			lease = nil
 		}

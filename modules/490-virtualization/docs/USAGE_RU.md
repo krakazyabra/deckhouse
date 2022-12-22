@@ -191,10 +191,10 @@ spec:
   userName: admin
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
-    image:
-      name: ubuntu-20.04
-      size: 10Gi
-      type: linstor-data
+    source:
+      kind: ClusterVirtualMachineImage
+      name: ubuntu-22.04
+    size: 10Gi
   cloudInit:
     userData: |-
       chpasswd: { expire: False }

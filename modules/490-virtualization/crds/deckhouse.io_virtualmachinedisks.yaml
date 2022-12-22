@@ -27,7 +27,7 @@ spec:
       name: VM
       type: string
     - jsonPath: .spec.storageClassName
-      name: VM
+      name: StorageClass
       type: string
     - jsonPath: .status.vmName
       name: VM

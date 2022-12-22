@@ -290,6 +290,30 @@ spec:
   sshPublicKey: "ssh-rsa asdasdkflkasddf..."
   bootDisk:
     name: foo
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineIPAddressClaim
+metadata:
+  name: vm8
+  namespace: default
+spec:
+  static: false
+  address: 10.10.10.8
+  leaseName: ip-10-10-10-8
+status:
+  phase: Bound
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: VirtualMachineIPAddressClaim
+metadata:
+  name: vm9
+  namespace: default
+spec:
+  static: true
+  address: 10.10.10.9
+  leaseName: ip-10-10-10-9
+status:
+  phase: Bound
 `),
 			)
 			f.RunHook()
@@ -352,6 +376,15 @@ spec:
 			By("Should not allow to run VirtualMachine with VirtualMachineDisk attached to other VirtualMachine")
 			vm7 := f.KubernetesResource("virtualmachines.kubevirt.io", "default", "vm7")
 			Expect(vm7).To(BeEmpty())
+
+			// TODO: should we remove non-static ip automatically?
+			// By("Should remove non static VirtualMachineIPAddressClaim without assigned VirtualMachine")
+			// d8vm8 := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "vm8")
+			// Expect(d8vm8).To(BeEmpty())
+
+			By("Should keep static VirtualMachineIPAddressClaim without assigned VirtualMachine")
+			d8vm9 := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "vm9")
+			Expect(d8vm9).To(BeEmpty())
 		})
 	})
 

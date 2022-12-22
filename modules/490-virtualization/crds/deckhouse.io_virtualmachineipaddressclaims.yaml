@@ -64,8 +64,6 @@ spec:
                 default: true
                 description: Static represents the static claim
                 type: boolean
-            required:
-            - static
             type: object
           status:
             description: VirtualMachineIPAddressClaimStatus defines the observed state

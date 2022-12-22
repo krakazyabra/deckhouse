@@ -382,6 +382,7 @@ func checkAndCleanupIPAddressClaim(input *go_hook.HookInput, ipClaim *VirtualMac
 		input.PatchCollector.MergePatch(patch, gv, "VirtualMachineIPAddressClaim", ipClaim.Namespace, ipClaim.Name)
 	}
 	if ipClaim.Static != nil && !*ipClaim.Static && !ipClaim.OwnerReferenceIsSet && ipClaim.VMName != "" {
+		// TODO: should we remove non-static ip automatically?
 		if d8vm := getD8VM(&deckhouseVMSnap, ipClaim.Namespace, ipClaim.VMName); d8vm != nil {
 			ownerReferences := []v1.OwnerReference{{
 				APIVersion:         gv,
