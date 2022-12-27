@@ -359,7 +359,7 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 			}
 			cached := c.getCachedRoute(CIDRRoutesBucket, cidr.String())
 			if cached.Equal(&route) {
-				err = c.addCachedRoute(VMIRoutesBucket, cidr.String(), route)
+				err = c.addCachedRoute(CIDRRoutesBucket, cidr.String(), route)
 				if err != nil && !os.IsExist(err) {
 					return fmt.Errorf("failed to add route %v", err)
 				}
