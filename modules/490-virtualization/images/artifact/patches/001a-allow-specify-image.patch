@@ -1,8 +1,8 @@
 diff --git a/pkg/virt-operator/util/config.go b/pkg/virt-operator/util/config.go
-index 9e192a506..b32473c63 100644
+index 9e192a506..70ff4a005 100644
 --- a/pkg/virt-operator/util/config.go
 +++ b/pkg/virt-operator/util/config.go
-@@ -331,11 +331,6 @@ func VerifyEnvWithEnvVarManager(envVarManager EnvVarManager) error {
+@@ -331,25 +331,6 @@ func VerifyEnvWithEnvVarManager(envVarManager EnvVarManager) error {
  	if imageString == "" {
  		return fmt.Errorf("empty env var %s for operator image", OldOperatorImageEnvName)
  	}
@@ -11,6 +11,20 @@ index 9e192a506..b32473c63 100644
 -	if len(matches) != 1 || len(matches[0]) != 4 {
 -		return fmt.Errorf("can not parse operator image env var %s", imageString)
 -	}
+-
+-	// ensure that all or no shasums are given
+-	missingShas := make([]string, 0)
+-	count := 0
+-	for _, name := range []string{VirtApiShasumEnvName, VirtControllerShasumEnvName, VirtHandlerShasumEnvName, VirtLauncherShasumEnvName, KubeVirtVersionEnvName} {
+-		count++
+-		sha := envVarManager.Getenv(name)
+-		if sha == "" {
+-			missingShas = append(missingShas, name)
+-		}
+-	}
+-	if len(missingShas) > 0 && len(missingShas) < count {
+-		return fmt.Errorf("incomplete configuration, missing env vars %v", missingShas)
+-	}
  
- 	// ensure that all or no shasums are given
- 	missingShas := make([]string, 0)
+ 	return nil
+ }
