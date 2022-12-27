@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
 	v1 "k8s.io/api/core/v1"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +52,6 @@ type VMIRouterController struct {
 	RESTClient     rest.Interface
 	NodeName       string
 	DB             *bolt.DB
-	RunningUUID    uuid.UUID
 	CIDRs          []*net.IPNet
 	RouteLocal     bool
 	RouteAdd       func(*netlink.Route) error
@@ -63,13 +61,12 @@ type VMIRouterController struct {
 }
 
 type CachedRoute struct {
-	IP       string    `json:"ip"`
-	NodeName string    `json:"nodeName"`
-	NodeIP   string    `json:"nodeIP"`
-	UUID     uuid.UUID `json:"uuid"`
+	IP       string `json:"ip"`
+	NodeName string `json:"nodeName"`
+	NodeIP   string `json:"nodeIP"`
 }
 
-func (a *CachedRoute) EqualWithoutUUID(b *CachedRoute) bool {
+func (a *CachedRoute) Equal(b *CachedRoute) bool {
 	if a.IP != b.IP {
 		return false
 	}
@@ -93,7 +90,6 @@ func (c VMIRouterController) Start(ctx context.Context) error {
 	}
 
 	log.Info("starting vmi routes controller")
-	c.RunningUUID = uuid.New()
 
 	lw := cache.NewListWatchFromClient(c.RESTClient, "virtualmachineinstances", v1.NamespaceAll, fields.Everything())
 	informer := cache.NewSharedIndexInformer(lw, &virtv1.VirtualMachineInstance{}, 12*time.Hour,
@@ -205,18 +201,15 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 		IP:       vmiIP,
 		NodeName: node.GetName(),
 		NodeIP:   nodeIP,
-		UUID:     c.RunningUUID,
 	}
 
-	if cached.EqualWithoutUUID(&toCache) {
-		if cached.UUID.String() != toCache.UUID.String() {
-			err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
-			if err != nil && !os.IsExist(err) {
-				log.Error(err, "failed to add route")
-				return
-			}
-			log.Info(fmt.Sprintf("loaded route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
+	if cached.Equal(&toCache) {
+		err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
+		if err != nil && !os.IsExist(err) {
+			log.Error(err, "failed to add route")
+			return
 		}
+		log.Info(fmt.Sprintf("loaded route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
 		// No changes
 		return
 	}
@@ -362,18 +355,15 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 		// adding new CIDR routes
 		for _, cidr := range c.CIDRs {
 			route := CachedRoute{
-				IP:   cidr.String(),
-				UUID: c.RunningUUID,
+				IP: cidr.String(),
 			}
 			cached := c.getCachedRoute(CIDRRoutesBucket, cidr.String())
-			if cached.EqualWithoutUUID(&route) {
-				if cached.UUID.String() != route.UUID.String() {
-					err = c.addCachedRoute(VMIRoutesBucket, cidr.String(), route)
-					if err != nil && !os.IsExist(err) {
-						return fmt.Errorf("failed to add route %v", err)
-					}
-					log.Info(fmt.Sprintf("loaded route for cidr %s", cidr.String()))
+			if cached.Equal(&route) {
+				err = c.addCachedRoute(VMIRoutesBucket, cidr.String(), route)
+				if err != nil && !os.IsExist(err) {
+					return fmt.Errorf("failed to add route %v", err)
 				}
+				log.Info(fmt.Sprintf("loaded route for cidr %s", cidr.String()))
 			} else {
 				log.Info(fmt.Sprintf("adding route for cidr %s", cidr.String()))
 				if err := c.addCachedRoute(CIDRRoutesBucket, cidr.String(), route); err != nil && !os.IsExist(err) {
