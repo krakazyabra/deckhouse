@@ -211,7 +211,7 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 	if cached.EqualWithoutUUID(&toCache) {
 		if cached.UUID.String() != toCache.UUID.String() {
 			err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
-			if err != nil {
+			if err != nil && !os.IsExist(err) {
 				log.Error(err, "failed to add route")
 				return
 			}
@@ -226,7 +226,7 @@ func (c VMIRouterController) updateRoute(vmi *virtv1.VirtualMachineInstance) {
 
 	log.Info(fmt.Sprintf("adding route for %s/%s (%s) via %s (%s)", vmi.GetNamespace(), vmi.GetName(), vmiIP, node.GetName(), nodeIP))
 	err = c.addCachedRoute(VMIRoutesBucket, dbKey, toCache)
-	if err != nil {
+	if err != nil && !os.IsExist(err) {
 		log.Error(err, "failed to add route")
 		return
 	}
@@ -336,7 +336,6 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 				if c.RouteLocal {
 					if string(key) == cidr.String() {
 						shouldDelete = false
-						log.Info(fmt.Sprintf("loaded route for cidr %s", key))
 						break
 					}
 				}
@@ -363,10 +362,19 @@ func (c VMIRouterController) syncCIDRRoutes() error {
 		// adding new CIDR routes
 		for _, cidr := range c.CIDRs {
 			route := CachedRoute{
-				IP: cidr.String(),
+				IP:   cidr.String(),
+				UUID: c.RunningUUID,
 			}
 			cached := c.getCachedRoute(CIDRRoutesBucket, cidr.String())
-			if cached.IP == "" {
+			if cached.EqualWithoutUUID(&route) {
+				if cached.UUID.String() != route.UUID.String() {
+					err = c.addCachedRoute(VMIRoutesBucket, cidr.String(), route)
+					if err != nil && !os.IsExist(err) {
+						return fmt.Errorf("failed to add route %v", err)
+					}
+					log.Info(fmt.Sprintf("loaded route for cidr %s", cidr.String()))
+				}
+			} else {
 				log.Info(fmt.Sprintf("adding route for cidr %s", cidr.String()))
 				if err := c.addCachedRoute(CIDRRoutesBucket, cidr.String(), route); err != nil && !os.IsExist(err) {
 					return fmt.Errorf("failed to add route %v", err)
