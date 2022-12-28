@@ -25,6 +25,7 @@ kubectl get publicimagesources.deckhouse.io
 ```
 
 пример вывода:
+
 ```bash
 # kubectl get publicimagesources.deckhouse.io
 NAME           DISTRO         VERSION    AGE
@@ -38,7 +39,6 @@ rocky-9        Rocky Linux    9          29m
 ubuntu-20.04   Ubuntu         20.04      29m
 ubuntu-22.04   Ubuntu         22.04      29m
 ```
-
 
 ## Создание VirtualMachine
 
@@ -79,7 +79,7 @@ spec:
 
 Желаемый IP-адрес должен находиться в пределах одного из `vmCIDR` определённого в конфигурации модуля и не быть в использовании какой-либо другой виртуальной машины.
 
-```
+```yaml
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachineIPAddressClaim
 metadata:
@@ -105,6 +105,7 @@ kubectl get vmip
 ```
 
 пример вывода команды:
+
 ```bash
 # kubectl get vmip
 NAME    ADDRESS       STATIC   STATUS   VM      AGE
@@ -120,7 +121,7 @@ kubectl delete vmip vm100
 
 `VirtualMachineIPAddressClaim` по умолчанию называются также как и виртуальная машина, но есть возможность передать и любое другое произвольное имя, для этого в спеке виртуальной машины необходимо указать:
 
-```
+```yaml
 ipAddressClaimName: <имя>
 ```
 

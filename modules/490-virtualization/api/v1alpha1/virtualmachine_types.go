@@ -83,7 +83,7 @@ type DiskSource struct {
 	Hotpluggable bool `json:"hotpluggable,omitempty"`
 	// Bus indicates the type of disk device to emulate.
 	// supported values: virtio, sata, scsi, usb.
-	Bus string `json:"bus,omitempty"`
+	Bus virtv1.DiskBus `json:"bus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
