@@ -40,7 +40,7 @@ var _ = Describe("Module :: ingress-nginx :: helm template :: controllers ", fun
 		hec.ValuesSet("global.modules.publicDomainTemplate", "%s.example.com")
 		hec.ValuesSet("global.modules.https.mode", "CertManager")
 		hec.ValuesSet("global.modules.https.certManager.clusterIssuerName", "letsencrypt")
-		hec.ValuesSet("global.modulesImages.registry", "registry.deckhouse.io/deckhouse/fe")
+		hec.ValuesSet("global.modulesImages.registry.base", "registry.deckhouse.io/deckhouse/fe")
 		hec.ValuesSet("global.enabledModules", []string{"cert-manager", "vertical-pod-autoscaler-crd"})
 		hec.ValuesSet("global.discovery.d8SpecificNodeCountByRole.system", 2)
 
@@ -60,9 +60,8 @@ var _ = Describe("Module :: ingress-nginx :: helm template :: controllers ", fun
 - controllerName: %s
   ingressClass: nginx
   data:
-    certificate: teststring
+    cert: teststring
     key: teststring
-    certificate_updated: true
 `, ingressName)
 			}
 			hec.ValuesSetFromYaml("ingressNginx.internal.nginxAuthTLS", certificates)
@@ -179,10 +178,6 @@ memory: 200Mi`))
 
 			fakeIng := hec.KubernetesResource("Ingress", "d8-ingress-nginx", "test-custom-headers-reload")
 			Expect(fakeIng.Field("spec.rules.0.http.paths.0.path").String()).To(Equal("/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"))
-
-			fakeIng = hec.KubernetesResource("Ingress", "d8-ingress-nginx", "test-cert-update-reload")
-			Expect(fakeIng.Exists()).To(BeTrue())
-			Expect(fakeIng.Field("spec.rules.0.http.paths.0.path").String()).To(Equal("/fake-path"))
 
 			Expect(hec.KubernetesResource("Service", "d8-ingress-nginx", "test-load-balancer").Exists()).To(BeTrue())
 			Expect(hec.KubernetesResource("Service", "d8-ingress-nginx", "test-admission").Exists()).To(BeTrue())

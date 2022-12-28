@@ -18,7 +18,7 @@ package hooks
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,7 +36,9 @@ var _ = Describe("Modules :: deckhouse :: hooks :: update deckhouse image ::", f
 	f := HookExecutionConfigInit(`{
         "global": {
           "modulesImages": {
-			"registry": "my.registry.com/deckhouse"
+			"registry": {
+				"base": "my.registry.com/deckhouse"
+			}
 		  }
         },
 		"deckhouse": {
@@ -479,7 +481,7 @@ var _ = Describe("Modules :: deckhouse :: hooks :: update deckhouse image ::", f
 	Context("Notification: release with notification settings", func() {
 		var httpBody string
 		svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			data, _ := ioutil.ReadAll(r.Body)
+			data, _ := io.ReadAll(r.Body)
 			httpBody = string(data)
 		}))
 		AfterEach(func() {
@@ -595,7 +597,7 @@ metadata:
 	Context("Notification: release applyAfter time is after notification period", func() {
 		var httpBody string
 		svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			data, _ := ioutil.ReadAll(r.Body)
+			data, _ := io.ReadAll(r.Body)
 			httpBody = string(data)
 		}))
 		AfterEach(func() {

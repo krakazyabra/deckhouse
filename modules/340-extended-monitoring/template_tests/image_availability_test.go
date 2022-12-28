@@ -44,9 +44,23 @@ var _ = Describe("Module :: extendedMonitoring :: helm template :: image availab
 		hec.ValuesSet("global.modules.publicDomainTemplate", "%s.example.com")
 		hec.ValuesSet("global.modules.https.mode", "CertManager")
 		hec.ValuesSet("global.modules.https.certManager.clusterIssuerName", "letsencrypt")
-		hec.ValuesSet("global.modulesImages.registry", "registry.example.com")
+		hec.ValuesSet("global.modulesImages.registry.base", "registry.example.com")
 		hec.ValuesSet("global.enabledModules", []string{"cert-manager", "vertical-pod-autoscaler-crd", "operator-prometheus-crd"})
 		hec.ValuesSet("global.discovery.d8SpecificNodeCountByRole.system", 2)
+		hec.ValuesSetFromYaml("global.clusterConfiguration", `
+apiVersion: deckhouse.io/v1
+cloud:
+  prefix: dev
+  provider: OpenStack
+clusterDomain: cluster.local
+clusterType: Cloud
+defaultCRI: Containerd
+kind: ClusterConfiguration
+kubernetesVersion: "1.23"
+podSubnetCIDR: 10.111.0.0/16
+podSubnetNodeCIDRPrefix: "24"
+serviceSubnetCIDR: 10.222.0.0/16
+`)
 	})
 
 	Context("With imageAvailability.exporterEnabled", func() {

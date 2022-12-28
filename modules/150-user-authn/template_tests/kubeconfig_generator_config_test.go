@@ -76,14 +76,16 @@ Multiline
 		hec.ValuesSet("global.modules.ingressClass", "nginx")
 		hec.ValuesSet("global.modules.https.mode", "CertManager")
 		hec.ValuesSet("global.modules.https.certManager.clusterIssuerName", "letsencrypt")
-		hec.ValuesSet("global.modulesImages.registry", "registry.example.com")
+		hec.ValuesSet("global.modulesImages.registry.base", "registry.example.com")
 		hec.ValuesSet("global.enabledModules", []string{"cert-manager"})
 		hec.ValuesSet("global.discovery.d8SpecificNodeCountByRole.system", 2)
 		hec.ValuesSet("global.discovery.kubernetesCA", k8sCa)
 
 		hec.ValuesSet("userAuthn.internal.kubernetesDexClientAppSecret", dexClientAppSecret)
-		hec.ValuesSet("userAuthn.internal.dexTLS.certificate", "do not use, but set")
+		hec.ValuesSet("userAuthn.internal.dexTLS.crt", "do not use, but set")
 		hec.ValuesSet("userAuthn.internal.dexTLS.key", "do not use, but set")
+		hec.ValuesSet("userAuthn.internal.dexTLS.ca", k8sCa)
+
 		hec.ValuesSet("userAuthn.internal.selfSignedCA.cert", "do not use, but set")
 		hec.ValuesSet("userAuthn.internal.selfSignedCA.key", "do not use, but set")
 	})

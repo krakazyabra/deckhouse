@@ -57,10 +57,11 @@ clusterConfiguration:
   podSubnetCIDR: 10.111.0.0/16
   podSubnetNodeCIDRPrefix: "24"
   serviceSubnetCIDR: 10.222.0.0/16
-  packagesProxy:
-    uri: https://example.com
-    username: user
-    password: passwd
+  proxy:
+    httpProxy: https://example.com
+    httpsProxy: https://example.com
+    noProxy:
+    - example.com
 `
 
 // Defaults from openapi/config-values.yaml.
@@ -70,11 +71,11 @@ allowedBundles:
   - "centos"
   - "debian"
 allowedKubernetesVersions:
-  - "1.20"
   - "1.21"
   - "1.22"
   - "1.23"
   - "1.24"
+  - "1.25"
 mcmEmergencyBrake: false
 `
 

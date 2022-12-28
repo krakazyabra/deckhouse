@@ -82,6 +82,7 @@ spec:
                 - kind
                 - name
                 type: object
+                x-kubernetes-map-type: atomic
               storageClassName:
                 type: string
             type: object

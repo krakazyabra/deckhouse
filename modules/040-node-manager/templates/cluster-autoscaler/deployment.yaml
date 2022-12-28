@@ -45,7 +45,7 @@ spec:
     {{- include "helm_lib_vpa_kube_rbac_proxy_resources" . | nindent 4 }}
     {{- end }}
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: cluster-autoscaler
@@ -131,7 +131,6 @@ spec:
         image: {{ include "helm_lib_module_common_image" (list . "kubeRbacProxy") }}
         args:
         - "--secure-listen-address=$(KUBE_RBAC_PROXY_LISTEN_ADDRESS):8443"
-        - "--client-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         - "--v=2"
         - "--logtostderr=true"
         - "--stale-cache-interval=1h30m"

@@ -6,9 +6,7 @@ Three layouts are supported. Below is more information about each of them.
 
 ## Standard
 
-In this placement strategy, nodes do not have public IP addresses allocated to them; they use Yandex.Cloud NAT to connect to the Internet.
-
-> **Caution!** The Yandex.Cloud NAT feature is at the [Preview stage](https://cloud.yandex.com/en/docs/vpc/operations/enable-nat) (as of 2022). To enable the Cloud NAT feature for your cloud, you need to contact Yandex.Cloud support in advance (in a week or so) and request access to it.
+In this placement strategy, nodes do not have public IP addresses allocated to them; they use Yandex Cloud NAT gateway to connect to the Internet.
 
 ![resources](https://docs.google.com/drawings/d/e/2PACX-1vTSpvzjcEBpD1qad9u_UgvsOrYT_Xtnxwg6Pzb64HQHLqQWcZi6hhCNRPKVUdYKX32nXEVJeCzACVRG/pub?w=812&h=655)
 <!--- Source: https://docs.google.com/drawings/d/1WI8tu-QZYcz3DvYBNlZG4s5OKQ9JKyna7ESHjnjuCVQ/edit --->
@@ -66,12 +64,6 @@ dhcpOptions:
   - 213.177.96.1
   - 231.177.97.1
 ```
-
-### Enabling Cloud NAT
-
-> **Caution!** Note that you must manually (using the web interface) enable Cloud NAT within 3 minutes after creating the primary network resources. The bootstrap process won't complete if you fail to do this.
-
-![Enabling NAT](../../images/030-cloud-provider-yandex/enable_cloud_nat.png)
 
 ## WithoutNAT
 

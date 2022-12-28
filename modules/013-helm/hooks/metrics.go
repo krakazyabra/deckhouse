@@ -23,7 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"sync"
 
@@ -75,6 +75,12 @@ const unsupportedVersionsYAML = `
   "autoscaling/v2beta1": ["HorizontalPodAutoscaler"]
   "policy/v1beta1": ["PodDisruptionBudget", "PodSecurityPolicy"]
   "node.k8s.io/v1beta1": ["RuntimeClass"]
+
+"1.26":
+  "flowcontrol.apiserver.k8s.io/v1beta1": ["FlowSchema", "PriorityLevelConfiguration"]
+
+"1.27":
+  "storage.k8s.io/v1beta1": ["CSIStorageCapacity"]
 `
 
 const (
@@ -180,7 +186,10 @@ func getHelm3Releases(ctx context.Context, client k8s.Client, releasesC chan<- *
 			Limit:         objectBatchSize,
 			Continue:      next,
 			// https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-get-and-list
-			ResourceVersion: "0",
+			// set explicit behavior:
+			//   Return data at any resource version. The newest available resource version is preferred, but strong consistency is not required; data at any resource version may be served.
+			ResourceVersion:      "0",
+			ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan,
 		})
 		if err != nil {
 			return 0, err
@@ -196,7 +205,7 @@ func getHelm3Releases(ctx context.Context, client k8s.Client, releasesC chan<- *
 			if err != nil {
 				return 0, err
 			}
-			// release can contains wrong namespace (set by helm and werf) and confuse user wit hwrong metric
+			// release can contain wrong namespace (set by helm and werf) and confuse user with a wrong metric
 			// fetch namespace from secret is more reliable
 			release.Namespace = secret.Namespace
 			release.HelmVersion = "3"
@@ -221,10 +230,11 @@ func getHelm2Releases(ctx context.Context, client k8s.Client, releasesC chan<- *
 
 	for {
 		cmList, err := client.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{
-			LabelSelector:   "OWNER=TILLER,STATUS=DEPLOYED",
-			Limit:           objectBatchSize,
-			Continue:        next,
-			ResourceVersion: "0",
+			LabelSelector:        "OWNER=TILLER,STATUS=DEPLOYED",
+			Limit:                objectBatchSize,
+			Continue:             next,
+			ResourceVersion:      "0",
+			ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan,
 		})
 		if err != nil {
 			return 0, err
@@ -240,7 +250,7 @@ func getHelm2Releases(ctx context.Context, client k8s.Client, releasesC chan<- *
 			if err != nil {
 				return 0, err
 			}
-			// release can contains wrong namespace (set by helm and werf) and confuse user wit hwrong metric
+			// release can contain wrong namespace (set by helm and werf) and confuse user with a wrong metric
 			// fetch namespace from secret is more reliable
 			release.Namespace = secret.Namespace
 			release.HelmVersion = "2"
@@ -328,10 +338,11 @@ const (
 )
 
 // CalculateCompatibility check compatibility. Returns
-//   0 - if resource is compatible
-//   1 - if resource in deprecated and will be removed in the future
-//   2 - if resource is unsupported for current k8s version
-//  and k8s version in which deprecation would be
+//
+//	 0 - if resource is compatible
+//	 1 - if resource in deprecated and will be removed in the future
+//	 2 - if resource is unsupported for current k8s version
+//	and k8s version in which deprecation would be
 func (uvs unsupportedVersionsStore) CalculateCompatibility(currentVersion *semver.Version, resourceAPIVersion, resourceKind string) (uint, string) {
 	// check unsupported api for current k8s version
 	currentK8SAPIsStorage, exists := uvs.getByK8sVersion(currentVersion)
@@ -399,7 +410,7 @@ func helm3DecodeRelease(data string) (*release, error) {
 			return nil, err
 		}
 		defer r.Close()
-		b2, err := ioutil.ReadAll(r)
+		b2, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
 		}
@@ -430,7 +441,7 @@ func helm2DecodeRelease(data string) (*release, error) {
 		if err != nil {
 			return nil, err
 		}
-		b2, err := ioutil.ReadAll(r)
+		b2, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
 		}

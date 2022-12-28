@@ -32,7 +32,7 @@ spec:
         memory: 2000Mi
 {{- end }}
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: deckhouse
@@ -67,7 +67,7 @@ spec:
       labels:
         app: deckhouse
       annotations:
-        checksum/registry: {{ include (print $.Template.BasePath "/registry.yaml") . | sha256sum }}
+        checksum/registry: {{ include (print $.Template.BasePath "/registry-secret.yaml") . | sha256sum }}
     spec:
       affinity:
         nodeAffinity:

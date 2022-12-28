@@ -1,8 +1,9 @@
 global:
   enabledModules: ["vertical-pod-autoscaler-crd", "prometheus", "priority-class"]
   modulesImages:
-    registry: registry.deckhouse.io/deckhouse/fe
-    registryDockercfg: Y2ZnCg==
+    registry:
+      base: registry.deckhouse.io/deckhouse/fe
+      dockercfg: Y2ZnCg==
     tags:
       keepalived:
         keepalived: tagstring
@@ -11,5 +12,9 @@ global:
     d8SpecificNodeCountByRole:
       system: 1
     kubernetesVersion: 1.15.5
+  internal:
+    modules:
+      kubeRBACProxyCA:
+        cert: "test"
 keepalived:
   instances: {}

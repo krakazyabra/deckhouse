@@ -48,7 +48,22 @@ chmod +x /var/lib/bashible/cloud-provider-bootstrap-networks-{{ $bundle }}.sh
   {{- $_ := set $bashible_bootstrap_script_tpl_context "Template" $context.Template }}
   {{- $_ := set $bashible_bootstrap_script_tpl_context "Files" $context.Files }}
   {{- $_ := set $bashible_bootstrap_script_tpl_context "allowedBundles" $context.Values.nodeManager.allowedBundles }}
-  {{- $_ := set $bashible_bootstrap_script_tpl_context "registry" (dict "address" $context.Values.global.modulesImages.registryAddress "path" $context.Values.global.modulesImages.registryPath "scheme" $context.Values.global.modulesImages.registryScheme "ca" $context.Values.global.modulesImages.registryCA "dockerCfg" $context.Values.global.modulesImages.registryDockercfg) }}
+  {{- $_ := set $bashible_bootstrap_script_tpl_context "registry" (dict "address" $context.Values.global.modulesImages.registry.address "path" $context.Values.global.modulesImages.registry.path "scheme" $context.Values.global.modulesImages.registry.scheme "ca" $context.Values.global.modulesImages.registry.CA "dockerCfg" $context.Values.global.modulesImages.registry.dockercfg) }}
+  {{- if hasKey $context.Values.global.clusterConfiguration "proxy" }}
+    {{- $proxy := dict }}
+    {{- if hasKey $context.Values.global.clusterConfiguration.proxy "httpProxy" }}
+      {{- $_ := set $proxy "httpProxy" $context.Values.global.clusterConfiguration.proxy.httpProxy }}
+    {{- end }}
+    {{- if hasKey $context.Values.global.clusterConfiguration.proxy "httpsProxy" }}
+      {{- $_ := set $proxy "httpsProxy" $context.Values.global.clusterConfiguration.proxy.httpsProxy }}
+    {{- end }}
+    {{- $noProxy := list "127.0.0.1" "169.254.169.254" $context.Values.global.clusterConfiguration.clusterDomain $context.Values.global.clusterConfiguration.podSubnetCIDR $context.Values.global.clusterConfiguration.serviceSubnetCIDR }}
+    {{- if hasKey $context.Values.global.clusterConfiguration.proxy "noProxy" }}
+      {{- $noProxy = concat $noProxy $context.Values.global.clusterConfiguration.proxy.noProxy }}
+    {{- end }}
+    {{- $_ := set $proxy "noProxy" $noProxy }}
+    {{- $_ := set $bashible_bootstrap_script_tpl_context "proxy" $proxy }}
+  {{- end }}
   {{- /* For centos bootstrap script jq package tag is needed */ -}}
   {{- $images := dict }}
   {{- $images := set $images "registrypackages" (dict "jq16" $context.Values.global.modulesImages.tags.registrypackages.jq16) }}
@@ -75,5 +90,10 @@ chmod 0600 /var/lib/bashible/bootstrap-token
 touch /var/lib/bashible/first_run
 {{- end }}
 
-/var/lib/bashible/bootstrap.sh
+checkBashible=$(systemctl is-active bashible.timer)
+if [[ "$checkBashible" == "inactive" ]]; then
+  /var/lib/bashible/bootstrap.sh
+else
+  echo "The node already exists in the cluster and under bashible."
+fi
 {{ end }}

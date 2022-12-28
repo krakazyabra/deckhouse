@@ -31,13 +31,13 @@ var _ = Describe("Module :: user-authn :: helm template :: dex-config", func() {
 	BeforeEach(func() {
 		hec.ValuesSet("global.discovery.kubernetesVersion", "1.21.1")
 		hec.ValuesSet("userAuthn.internal.kubernetesDexClientAppSecret", "test")
-		hec.ValuesSet("userAuthn.internal.dexTLS.certificate", "testcert")
+		hec.ValuesSet("userAuthn.internal.dexTLS.crt", "testcert")
 		hec.ValuesSet("userAuthn.internal.dexTLS.key", "testkey")
 
 		hec.ValuesSet("global.modules.publicDomainTemplate", "%s.example.com")
 		hec.ValuesSet("global.modules.https.mode", "CertManager")
 		hec.ValuesSet("global.modules.https.certManager.clusterIssuerName", "letsencrypt")
-		hec.ValuesSet("global.modulesImages.registry", "registry.example.com")
+		hec.ValuesSet("global.modulesImages.registry.base", "registry.example.com")
 		hec.ValuesSet("global.enabledModules", []string{"cert-manager", "vertical-pod-autoscaler-crd"})
 		hec.ValuesSet("global.discovery.d8SpecificNodeCountByRole.system", 2)
 	})

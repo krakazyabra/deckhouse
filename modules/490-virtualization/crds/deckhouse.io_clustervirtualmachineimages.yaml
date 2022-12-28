@@ -212,6 +212,7 @@ spec:
                 - kind
                 - name
                 type: object
+                x-kubernetes-map-type: atomic
             type: object
           status:
             description: ClusterVirtualMachineImageStatus defines the observed state

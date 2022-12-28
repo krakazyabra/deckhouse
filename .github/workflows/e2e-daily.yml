@@ -2,7 +2,19 @@
 # THIS FILE IS GENERATED, PLEASE DO NOT EDIT.
 #
 
-name: 'Daily e2e tests'
+# Copyright 2022 Flant JSC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.name: 'Daily e2e tests'
 on:
   schedule:
   - cron: '0 3 * * 1-5'
@@ -114,15 +126,15 @@ jobs:
 
   # </template: git_info_job>
   # <template: e2e_run_job_template>
-  run_aws_containerd_1_21:
-    name: "AWS, Containerd, Kubernetes 1.21"
+  run_aws_containerd_1_23:
+    name: "AWS, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: AWS
       CRI: Containerd
       LAYOUT: WithoutNAT
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -287,13 +299,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: AWS/Containerd/1.21"
+      - name: "Run e2e test: AWS/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: AWS
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -348,7 +360,7 @@ jobs:
           PROVIDER: AWS
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -400,7 +412,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_aws_containerd_1_21
+          name: test_output_aws_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -437,7 +449,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "WithoutNAT",
               "provider": "AWS",
               "trigger": "CloudLayoutTestFailed",
@@ -474,15 +486,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_azure_containerd_1_21:
-    name: "Azure, Containerd, Kubernetes 1.21"
+  run_azure_containerd_1_23:
+    name: "Azure, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: Azure
       CRI: Containerd
       LAYOUT: Standard
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -647,13 +659,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: Azure/Containerd/1.21"
+      - name: "Run e2e test: Azure/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: Azure
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -712,7 +724,7 @@ jobs:
           PROVIDER: Azure
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -768,7 +780,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_azure_containerd_1_21
+          name: test_output_azure_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -805,7 +817,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "Standard",
               "provider": "Azure",
               "trigger": "CloudLayoutTestFailed",
@@ -842,15 +854,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_gcp_containerd_1_21:
-    name: "GCP, Containerd, Kubernetes 1.21"
+  run_gcp_containerd_1_23:
+    name: "GCP, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: GCP
       CRI: Containerd
       LAYOUT: WithoutNAT
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -1015,13 +1027,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: GCP/Containerd/1.21"
+      - name: "Run e2e test: GCP/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: GCP
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1074,7 +1086,7 @@ jobs:
           PROVIDER: GCP
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1124,7 +1136,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_gcp_containerd_1_21
+          name: test_output_gcp_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -1161,7 +1173,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "WithoutNAT",
               "provider": "GCP",
               "trigger": "CloudLayoutTestFailed",
@@ -1198,15 +1210,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_yandex_cloud_containerd_1_21:
-    name: "Yandex.Cloud, Containerd, Kubernetes 1.21"
+  run_yandex_cloud_containerd_1_23:
+    name: "Yandex.Cloud, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: Yandex.Cloud
       CRI: Containerd
       LAYOUT: WithoutNAT
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -1371,13 +1383,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: Yandex.Cloud/Containerd/1.21"
+      - name: "Run e2e test: Yandex.Cloud/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: Yandex.Cloud
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1434,7 +1446,7 @@ jobs:
           PROVIDER: Yandex.Cloud
           CRI: Containerd
           LAYOUT: WithoutNAT
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1488,7 +1500,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_yandex-cloud_containerd_1_21
+          name: test_output_yandex-cloud_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -1525,7 +1537,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "WithoutNAT",
               "provider": "Yandex.Cloud",
               "trigger": "CloudLayoutTestFailed",
@@ -1562,15 +1574,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_openstack_containerd_1_21:
-    name: "OpenStack, Containerd, Kubernetes 1.21"
+  run_openstack_containerd_1_23:
+    name: "OpenStack, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: OpenStack
       CRI: Containerd
       LAYOUT: Standard
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -1735,13 +1747,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: OpenStack/Containerd/1.21"
+      - name: "Run e2e test: OpenStack/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: OpenStack
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1794,7 +1806,7 @@ jobs:
           PROVIDER: OpenStack
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -1844,7 +1856,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_openstack_containerd_1_21
+          name: test_output_openstack_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -1881,7 +1893,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "Standard",
               "provider": "OpenStack",
               "trigger": "CloudLayoutTestFailed",
@@ -1918,15 +1930,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_vsphere_containerd_1_21:
-    name: "vSphere, Containerd, Kubernetes 1.21"
+  run_vsphere_containerd_1_23:
+    name: "vSphere, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: vSphere
       CRI: Containerd
       LAYOUT: Standard
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-vsphere]
     steps:
@@ -2091,13 +2103,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: vSphere/Containerd/1.21"
+      - name: "Run e2e test: vSphere/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: vSphere
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -2152,7 +2164,7 @@ jobs:
           PROVIDER: vSphere
           CRI: Containerd
           LAYOUT: Standard
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -2204,7 +2216,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_vsphere_containerd_1_21
+          name: test_output_vsphere_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -2241,7 +2253,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "Standard",
               "provider": "vSphere",
               "trigger": "CloudLayoutTestFailed",
@@ -2278,15 +2290,15 @@ jobs:
   # </template: e2e_run_job_template>
 
   # <template: e2e_run_job_template>
-  run_static_containerd_1_21:
-    name: "Static, Containerd, Kubernetes 1.21"
+  run_static_containerd_1_23:
+    name: "Static, Containerd, Kubernetes 1.23"
     needs:
       - git_info
     env:
       PROVIDER: Static
       CRI: Containerd
       LAYOUT: Static
-      KUBERNETES_VERSION: "1.21"
+      KUBERNETES_VERSION: "1.23"
       EVENT_LABEL: ${{ github.event.label.name }}
     runs-on: [self-hosted, e2e-common]
     steps:
@@ -2451,13 +2463,13 @@ jobs:
 
           echo '::echo::off'
 
-      - name: "Run e2e test: Static/Containerd/1.21"
+      - name: "Run e2e test: Static/Containerd/1.23"
         timeout-minutes: 60
         env:
           PROVIDER: Static
           CRI: Containerd
           LAYOUT: Static
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -2510,7 +2522,7 @@ jobs:
           PROVIDER: Static
           CRI: Containerd
           LAYOUT: Static
-          KUBERNETES_VERSION: "1.21"
+          KUBERNETES_VERSION: "1.23"
           LAYOUT_DECKHOUSE_DOCKERCFG: ${{ secrets.LAYOUT_DECKHOUSE_DOCKERCFG }}
           LAYOUT_SSH_KEY: ${{ secrets.LAYOUT_SSH_KEY}}
           TMP_DIR_PATH: ${{ steps.setup.outputs.tmp-dir-path}}
@@ -2560,7 +2572,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v2
         with:
-          name: test_output_static_containerd_1_21
+          name: test_output_static_containerd_1_23
           path: |
             testing/cloud_layouts/
 
@@ -2597,7 +2609,7 @@ jobs:
           {
             "labels": {
               "cri": "Containerd",
-              "kube_version": "1.21",
+              "kube_version": "1.23",
               "layout": "Static",
               "provider": "Static",
               "trigger": "CloudLayoutTestFailed",
@@ -2637,7 +2649,7 @@ jobs:
   send_alert_about_workflow_problem:
     name: Send alert about workflow problem
     runs-on: ubuntu-latest
-    needs: ["skip_tests_repos","git_info","run_aws_containerd_1_21","run_azure_containerd_1_21","run_gcp_containerd_1_21","run_yandex_cloud_containerd_1_21","run_openstack_containerd_1_21","run_vsphere_containerd_1_21","run_static_containerd_1_21"]
+    needs: ["skip_tests_repos","git_info","run_aws_containerd_1_23","run_azure_containerd_1_23","run_gcp_containerd_1_23","run_yandex_cloud_containerd_1_23","run_openstack_containerd_1_23","run_vsphere_containerd_1_23","run_static_containerd_1_23"]
     if: ${{ failure() }}
     steps:
 

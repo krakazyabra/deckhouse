@@ -1,3 +1,14 @@
+// Copyright 2022 Flant JSC
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//     http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //@ts-check
 
 const skipE2eLabel = 'skip/e2e';
@@ -26,11 +37,11 @@ const labels = {
   'e2e/use/cri/containerd': { type: 'e2e-use', cri: 'Containerd' },
 
   // E2E: use Kubernetes version
-  'e2e/use/k8s/1.20': { type: 'e2e-use', ver: '1.20' },
   'e2e/use/k8s/1.21': { type: 'e2e-use', ver: '1.21' },
   'e2e/use/k8s/1.22': { type: 'e2e-use', ver: '1.22' },
   'e2e/use/k8s/1.23': { type: 'e2e-use', ver: '1.23' },
   'e2e/use/k8s/1.24': { type: 'e2e-use', ver: '1.24' },
+  'e2e/use/k8s/1.25': { type: 'e2e-use', ver: '1.25' },
 
   // Allow running workflows for external PRs.
   'status/ok-to-test': { type: 'ok-to-test' },
@@ -126,7 +137,7 @@ module.exports.knownKubernetesVersions = kubernetesVersions;
 
 module.exports.e2eDefaults = {
   criName: 'Containerd',
-  kubernetesVersion: '1.21',
+  kubernetesVersion: '1.23',
 }
 
 const editions = [

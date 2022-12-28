@@ -384,7 +384,7 @@ status:
 
 			By("Should keep static VirtualMachineIPAddressClaim without assigned VirtualMachine")
 			d8vm9 := f.KubernetesResource("VirtualMachineIPAddressClaim", "default", "vm9")
-			Expect(d8vm9).To(BeEmpty())
+			Expect(d8vm9).To(Not(BeEmpty()))
 		})
 	})
 

@@ -69,9 +69,7 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 			NameSelector: &types.NameSelector{
 				MatchNames: []string{"crowd-basic-auth-cert"},
 			},
-			ExecuteHookOnSynchronization: pointer.BoolPtr(false),
-			ExecuteHookOnEvents:          pointer.BoolPtr(false),
-			FilterFunc:                   filterSecret,
+			FilterFunc: filterSecret,
 		},
 	},
 }, dependency.WithExternalDependencies(generateProxyAuthCert))
@@ -162,7 +160,7 @@ func generateProxyAuthCert(input *go_hook.HookInput, dc dependency.Container) er
 		return err
 	}
 
-	registry := input.Values.Get("global.modulesImages.registry").String()
+	registry := input.Values.Get("global.modulesImages.registry.base").String()
 	tag := input.Values.Get("global.modulesImages.tags.userAuthn.cfssl").String()
 	job := generateJob(registry, tag, base64.StdEncoding.EncodeToString(gcsr))
 
@@ -351,11 +349,12 @@ func generateJob(registry, tag, csrb64 string) *batchv1.Job {
 	}
 }
 
+// ways are hardcoded because we know where these files exist on the Deckhouse clusters
+// if you want to grep client-ca-file from kube-apiserver command line, use `ps auxww` to avoid line clipping
 var (
 	script = `set -e
-regex="--requestheader-client-ca-file[=| ][^ ]*"
-ca_path="$([[ $(ps aux| grep kube-apiserver) =~ $regex ]] && echo ${BASH_REMATCH[0]} | awk -F '=| ' '{ print $2 }')"
-key_path="$([[ $ca_path =~ ^(.+?)\.[^\.]+$ ]] && echo ${BASH_REMATCH[1]}).key"
+ca_path="/etc/kubernetes/pki/front-proxy-ca.crt"
+key_path="/etc/kubernetes/pki/front-proxy-ca.key"
 
 csr_config='{"CN":"front-proxy-client","hosts":[""],"key":{"algo": "rsa","size": 2048},"signing":{"default":{"expiry":"72h","usages":["signing","key encipherment","requestheader-client"]}}}'
 signed_cert=$(echo $CSR | base64 -d | cfssl sign -ca=$ca_path -ca-key=$key_path -config=<(echo $csr_config) - )

@@ -124,6 +124,22 @@ function main() {
   export REGISTRY_PATH="{{ .registry.path }}"
   export REGISTRY_AUTH="$(base64 -d <<< "{{ .registry.auth | default "" }}")"
 {{- end }}
+{{- if .proxy }}
+  {{- if .proxy.httpProxy }}
+  export HTTP_PROXY={{ .proxy.httpProxy | quote }}
+  export http_proxy=${HTTP_PROXY}
+  {{- end }}
+  {{- if .proxy.httpsProxy }}
+  export HTTPS_PROXY={{ .proxy.httpsProxy | quote }}
+  export https_proxy=${HTTPS_PROXY}
+  {{- end }}
+  {{- if .proxy.noProxy }}
+  export NO_PROXY={{ .proxy.noProxy | join "," | quote }}
+  export no_proxy=${NO_PROXY}
+  {{- end }}
+{{- else }}
+  unset HTTP_PROXY http_proxy HTTPS_PROXY https_proxy NO_PROXY no_proxy
+{{- end }}
 
   if type kubectl >/dev/null 2>&1 && test -f /etc/kubernetes/kubelet.conf ; then
     if tmp="$(kubectl_exec get node $(hostname -s) -o json | jq -r '.metadata.labels."node.deckhouse.io/group"')" ; then
@@ -239,7 +255,8 @@ function main() {
     echo === Step: $step
     echo ===
     attempt=0
-    until /bin/bash -eEo pipefail -c "export TERM=xterm-256color; unset CDPATH; cd $BOOTSTRAP_DIR; source /var/lib/bashible/bashbooster.sh; source $step"
+    sx=""
+    until /bin/bash -"$sx"eEo pipefail -c "export TERM=xterm-256color; unset CDPATH; cd $BOOTSTRAP_DIR; source /var/lib/bashible/bashbooster.sh; source $step"
     do
       attempt=$(( attempt + 1 ))
       if [ -n "${MAX_RETRIES-}" ] && [ "$attempt" -gt "${MAX_RETRIES}" ]; then
@@ -251,6 +268,11 @@ function main() {
       echo ===
       echo === Step: $step
       echo ===
+      {{- if eq .runType "ClusterBootstrap" }}
+      if [ "$attempt" -gt 2 ]; then
+        sx=x
+      fi
+      {{- end }}
     done
   done
 

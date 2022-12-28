@@ -89,6 +89,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   storageClassName:
                     description: Type represents the type for newly created disk
                     type: string
@@ -115,6 +116,7 @@ spec:
                           TODO: Add other useful fields. apiVersion, kind, uid?'
                         type: string
                     type: object
+                    x-kubernetes-map-type: atomic
                   secretRef:
                     description: UserDataSecretRef references a k8s secret that contains
                       NoCloud userdata.
@@ -124,6 +126,7 @@ spec:
                           TODO: Add other useful fields. apiVersion, kind, uid?'
                         type: string
                     type: object
+                    x-kubernetes-map-type: atomic
                   userData:
                     description: UserData contains NoCloud inline cloud-init userdata.
                     type: string

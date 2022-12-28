@@ -95,15 +95,26 @@ shopt -s failglob
 DEV_BRANCH=
 # Image tag to switch to if initial_image_tag is set.
 SWITCH_TO_IMAGE_TAG=
-# ssh command with common args.
-ssh_command="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet"
-
 # Path to private SSH key to connect to cluster after bootstrap
 ssh_private_key_path=
 # User for SSH connect.
 ssh_user=
 # IP of master node.
 master_ip=
+
+# function generates temp ssh parameters file
+function set_common_ssh_parameters() {
+  cat <<EOF >/tmp/cloud-test-ssh-config
+BatchMode yes
+UserKnownHostsFile /dev/null
+StrictHostKeyChecking no
+ServerAliveInterval 5
+ServerAliveCountMax 5
+LogLevel quiet
+EOF
+  # ssh command with common args.
+  ssh_command="ssh -F /tmp/cloud-test-ssh-config"
+}
 
 function abort_bootstrap_from_cache() {
   >&2 echo "Run abort_bootstrap_from_cache"
@@ -313,6 +324,8 @@ function prepare_environment() {
     ;;
   esac
 
+  set_common_ssh_parameters
+
   >&2 echo "Use configuration in directory '$cwd':"
   >&2 ls -la $cwd
 }
@@ -324,10 +337,12 @@ function run-test() {
     bootstrap || return $?
   fi
 
+  wait_deckhouse_ready || return $?
   wait_cluster_ready || return $?
 
   if [[ -n ${SWITCH_TO_IMAGE_TAG} ]]; then
     change_deckhouse_image "${SWITCH_TO_IMAGE_TAG}" || return $?
+    wait_deckhouse_ready || return $?
     wait_cluster_ready || return $?
   fi
 }
@@ -347,10 +362,83 @@ function bootstrap_static() {
     >&2 echo "ERROR: can't parse system_ip from terraform.log"
     return 1
   fi
+  if ! bastion_ip="$(grep "bastion_ip_address_for_ssh" "$cwd/terraform.log"| cut -d "=" -f2 | tr -d " ")" ; then
+    >&2 echo "ERROR: can't parse bastion_ip from terraform.log"
+    return 1
+  fi
+
+  # Add key to access to hosts thru bastion
+  eval "$(ssh-agent -s)"
+  ssh-add "$ssh_private_key_path"
+  ssh_bastion="-J $ssh_user@$bastion_ip"
+
+  testRunAttempts=20
+
+  for ((i=1; i<=$testRunAttempts; i++)); do
+    # Install http/https proxy on bastion node
+    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$bastion_ip" sudo su -c /bin/bash <<ENDSSH; then
+       apt-get update
+       apt-get install -y docker.io
+       docker run -d --network host vimagick/tinyproxy
+ENDSSH
+      initial_setup_failed=""
+      break
+    else
+      initial_setup_failed="true"
+      >&2 echo "Initial setup of bastion in progress (attempt #$i of $testRunAttempts). Sleeping 5 seconds ..."
+      sleep 5
+    fi
+  done
+  if [[ $initial_setup_failed == "true" ]] ; then
+    return 1
+  fi
+
+  for ((i=1; i<=$testRunAttempts; i++)); do
+    # Convert to air-gap environment
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<ENDSSH; then
+       echo "post-up ip route del default" >> /etc/network/interfaces
+       echo "post-up ip route add 10.111.0.0/16 dev lo" >> /etc/network/interfaces
+       echo "post-up ip route add 10.222.0.0/16 dev lo" >> /etc/network/interfaces
+       ip route del default
+       ip route add 10.111.0.0/16 dev lo
+       ip route add 10.222.0.0/16 dev lo
+ENDSSH
+      initial_setup_failed=""
+      break
+    else
+      initial_setup_failed="true"
+      >&2 echo "Initial setup of master in progress (attempt #$i of $testRunAttempts). Sleeping 5 seconds ..."
+      sleep 5
+    fi
+  done
+  if [[ $initial_setup_failed == "true" ]] ; then
+    return 1
+  fi
+
+  for ((i=1; i<=$testRunAttempts; i++)); do
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$system_ip" sudo su -c /bin/bash <<ENDSSH; then
+       echo "post-up ip route del default" >> /etc/network/interfaces
+       echo "post-up ip route add 10.111.0.0/16 dev lo" >> /etc/network/interfaces
+       echo "post-up ip route add 10.222.0.0/16 dev lo" >> /etc/network/interfaces
+       ip route del default
+       ip route add 10.111.0.0/16 dev lo
+       ip route add 10.222.0.0/16 dev lo
+ENDSSH
+      initial_setup_failed=""
+      break
+    else
+      initial_setup_failed="true"
+      >&2 echo "Initial setup of system in progress (attempt #$i of $testRunAttempts). Sleeping 5 seconds ..."
+      sleep 5
+    fi
+  done
+  if [[ $initial_setup_failed == "true" ]] ; then
+    return 1
+  fi
 
   # Bootstrap
   >&2 echo "Run dhctl bootstrap ..."
-  dhctl bootstrap --yes-i-want-to-drop-cache --ssh-host "$master_ip" --ssh-agent-private-keys "$ssh_private_key_path" --ssh-user "$ssh_user" \
+  dhctl bootstrap --yes-i-want-to-drop-cache --ssh-bastion-host "$bastion_ip" --ssh-bastion-user="$ssh_user" --ssh-host "$master_ip" --ssh-agent-private-keys "$ssh_private_key_path" --ssh-user "$ssh_user" \
   --config "$cwd/configuration.yaml" --resources "$cwd/resources.yaml" | tee "$cwd/bootstrap.log" || return $?
 
   >&2 echo "==============================================================
@@ -365,7 +453,7 @@ function bootstrap_static() {
 
   >&2 echo 'Fetch registration script ...'
   for ((i=0; i<10; i++)); do
-    bootstrap_system="$($ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash << "ENDSSH"
+    bootstrap_system="$($ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash << "ENDSSH"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
@@ -383,7 +471,7 @@ ENDSSH
 
   # shellcheck disable=SC2087
   # Node reboots in bootstrap process, so ssh exits with error code 255. It's normal, so we use || true to avoid script fail.
-  $ssh_command -o "ServerAliveInterval=5" -o "ServerAliveCountMax=5" -i "$ssh_private_key_path" "$ssh_user@$system_ip" sudo su -c /bin/bash <<ENDSSH || true
+  $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$system_ip" sudo su -c /bin/bash <<ENDSSH || true
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
@@ -393,7 +481,7 @@ ENDSSH
   registration_failed=
   >&2 echo 'Waiting until Node registration finishes ...'
   for ((i=1; i<=10; i++)); do
-    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<"ENDSSH"; then
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<"ENDSSH"; then
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
@@ -429,7 +517,7 @@ function bootstrap() {
   Cluster bootstrapped. Starting the test now.
 
   If you'd like to pause the cluster deletion for debugging:
-   1. ssh to cluster: 'ssh $ssh_user@$master_ip'
+   1. ssh to cluster: 'ssh $ssh_user@$master_ip $ssh_bastion'
    2. execute 'kubectl create configmap pause-the-test'
 
 =============================================================="
@@ -438,7 +526,7 @@ function bootstrap() {
 
   >&2 echo 'Waiting until Machine provisioning finishes ...'
   for ((i=1; i<=20; i++)); do
-    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<"ENDSSH"; then
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<"ENDSSH"; then
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
@@ -470,7 +558,7 @@ ENDSSH
 function change_deckhouse_image() {
   new_image_tag="${1}"
   >&2 echo "Change Deckhouse image to ${new_image_tag}."
-  if ! $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<ENDSSH; then
+  if ! $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<ENDSSH; then
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
@@ -479,31 +567,34 @@ ENDSSH
     >&2 echo "Cannot change deckhouse image to ${new_image_tag}."
     return 1
   fi
+}
 
+# wait_deckhouse_ready check if deckhouse Pod become ready.
+function wait_deckhouse_ready() {
   testScript=$(cat <<"END_SCRIPT"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG=C
 set -Eeuo pipefail
 kubectl -n d8-system get pods -l app=deckhouse
-[[ "$(kubectl -n d8-system get pods -l app=deckhouse -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}')" ==  "True" ]]
+[[ "$(kubectl -n d8-system get pods -l app=deckhouse -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}{..status.phase}')" ==  "TrueRunning" ]]
 END_SCRIPT
 )
 
   testRunAttempts=60
   for ((i=1; i<=$testRunAttempts; i++)); do
-    >&2 echo "Check Deckhouse pod readiness."
-    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
-      test_failed=""
-      break
-    else
-      test_failed="true"
-      >&2 echo "Check Deckhouse pod readiness via SSH: attempt $i/$testRunAttempts failed. Sleeping 30 seconds..."
+    >&2 echo "Check Deckhouse Pod readiness..."
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
+      return 0
+    fi
+
+    if [[ $i < $testRunAttempts ]]; then
+      >&2 echo -n "  Deckhouse Pod not ready. Attempt $i/$testRunAttempts failed. Sleep for 30 seconds..."
       sleep 30
+    else
+      >&2 echo -n "  Deckhouse Pod not ready. Attempt $i/$testRunAttempts failed."
     fi
   done
-  if [[ $test_failed == "true" ]] ; then
-    return 1
-  fi
+  return 1
 }
 
 # wait_cluster_ready constantly checks if cluster components become ready.
@@ -513,6 +604,26 @@ END_SCRIPT
 #  - ssh_user
 #  - master_ip
 function wait_cluster_ready() {
+  # Print deckhouse info and enabled modules.
+  infoScript=$(cat <<'END'
+kubectl -n d8-system get deploy/deckhouse -o jsonpath='{.kind}/{.metadata.name}:{"\n"}Image: {.spec.template.spec.containers[0].image} {"\n"}Config: {.spec.template.spec.containers[0].env[?(@.name=="ADDON_OPERATOR_CONFIG_MAP")]}{"\n"}'
+echo "Deployment/deckhouse"
+kubectl -n d8-system get deploy/deckhouse -o wide
+echo "Pod/deckhouse-*"
+kubectl -n d8-system get po -o wide | grep ^deckhouse
+echo "Enabled modules:"
+kubectl -n d8-system exec deploy/deckhouse -- deckhouse-controller module list -o yaml | grep -v enabledModules: | sort
+echo "ConfigMap/generated"
+kubectl -n d8-system get configmap/deckhouse-generated-config-do-not-edit -o yaml
+echo "ModuleConfigs"
+kubectl get moduleconfigs
+echo "Errors:"
+kubectl -n d8-system logs deploy/deckhouse | grep '"error"'
+END
+)
+
+  $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${infoScript}";
+
   if [[ "$PROVIDER" == "Static" ]]; then
     run_linstor_tests || return $?
   fi
@@ -653,7 +764,7 @@ END_SCRIPT
 
   testRunAttempts=5
   for ((i=1; i<=$testRunAttempts; i++)); do
-    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
       test_failed=""
       break
     else
@@ -664,7 +775,7 @@ END_SCRIPT
   done
 
   >&2 echo "Fetch Deckhouse logs after test ..."
-  $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash > "$cwd/deckhouse.json.log" <<"ENDSSH"
+  $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash > "$cwd/deckhouse.json.log" <<"ENDSSH"
 kubectl -n d8-system logs deploy/deckhouse
 ENDSSH
 
@@ -694,7 +805,7 @@ END_SCRIPT
 
   testRunAttempts=5
   for ((i=1; i<=$testRunAttempts; i++)); do
-    if $ssh_command -i "$ssh_private_key_path" "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
+    if $ssh_command -i "$ssh_private_key_path" $ssh_bastion "$ssh_user@$master_ip" sudo su -c /bin/bash <<<"${testScript}"; then
       test_failed=""
       break
     else
@@ -709,7 +820,6 @@ END_SCRIPT
   fi
 
 }
-
 
 function parse_master_ip_from_log() {
   >&2 echo "  Detect master_ip from bootstrap.log ..."

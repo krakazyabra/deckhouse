@@ -22,3 +22,44 @@ kubectl label ns my-namespace security.deckhouse.io/pod-policy=restricted
 ```
 
 Предлагаемые модулем политики могут быть расширены. Примеры расширения политик можно найти в [FAQ](faq.html).  
+
+### Операционные политики
+
+Модуль предоставляет набор операционных политик и лучших практик для безопасной работы ваших приложений.
+Мы рекомендуем устанавливать следующий минимальный набор операционных политик:
+
+```yaml
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: OperationPolicy
+metadata:
+  name: common
+spec:
+  policies:
+    allowedRepos:
+      - myrepo.example.com
+      - registry.deckhouse.io
+    requiredResources:
+      limits:
+        - memory
+      requests:
+        - cpu
+        - memory
+    disallowedImageTags:
+      - latest
+    requiredProbes:
+      - livenessProbe
+      - readinessProbe
+    maxRevisionHistoryLimit: 3
+    imagePullPolicy: IfNotPresent
+    priorityClassName: production-low
+    checkHostNetworkDNSPolicy: true
+    checkContainerDuplicates: true
+  match:
+    namespaceSelector:
+      labelSelector:
+        matchLabels:
+          operation-policy.deckhouse.io/enabled: "true"
+```
+
+Для применения приведенной политики достаточно навесить лейбл `operation-policy.deckhouse.io/enabled: "true"` на желаемый namespace. Политика, приведенная в примере, рекомендована для использования командой Deckhouse. Аналогичным образом вы можете создать собственную политику с необходимыми настройками.
