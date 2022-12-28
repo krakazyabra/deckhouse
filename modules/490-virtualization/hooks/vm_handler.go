@@ -273,7 +273,7 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 	}
 
 	// attach cloud-init
-	if d8vm.Spec.CloudInit != nil {
+	if len(cloudInit) != 0 {
 		vm.Spec.Template.Spec.Domain.Devices.Disks = append(vm.Spec.Template.Spec.Domain.Devices.Disks, virtv1.Disk{
 			Name: "cloudinit",
 			DiskDevice: virtv1.DiskDevice{
