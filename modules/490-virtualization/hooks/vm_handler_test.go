@@ -85,9 +85,6 @@ spec:
     size: 10Gi
     storageClassName: linstor-slow
     autoDelete: true
-  cloudInit:
-    userData: |-
-      chpasswd: { expire: False }
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: VirtualMachineDisk
@@ -328,6 +325,7 @@ status:
 			vm := f.KubernetesResource("virtualmachines.kubevirt.io", "default", "vm1")
 			Expect(vm).To(Not(BeEmpty()))
 			Expect(vm.Field(`apiVersion`).String()).To(Equal("kubevirt.io/v1"))
+			Expect(vm.Field(`spec.template.spec.volumes`).Array()).To(HaveLen(2))
 
 			d8vm := f.KubernetesResource("VirtualMachine", "default", "vm1")
 			Expect(d8vm).To(Not(BeEmpty()))
