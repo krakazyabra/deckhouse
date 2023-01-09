@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	initValuesString       = `{"virtualization":{"internal":{"webhookCert":{}},"vmCIDRs":["10.10.10.0/24"]},"global":{"discovery":{"clusterDomain":"mycluster.local"}}}`
+	initValuesString       = `{"virtualization":{"internal":{},"vmCIDRs":["10.10.10.0/24"]},"global":{"discovery":{"clusterDomain":"mycluster.local"}}}`
 	initConfigValuesString = `{}`
 	gv                     = "deckhouse.io/v1alpha1"
 )

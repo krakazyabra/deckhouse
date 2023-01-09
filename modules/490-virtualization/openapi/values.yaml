@@ -6,22 +6,10 @@ properties:
     type: object
     default: {}
     x-required-for-helm:
-    - webhookCert
+    - routeLocal
     properties:
-      webhookCert:
-        type: object
-        default: {}
-        x-required-for-helm:
-        - cert
-        - key
-        - ca
-        properties:
-          cert:
-            type: string
-            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
-          key:
-            type: string
-            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
-          ca:
-            type: string
-            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+      routeLocal:
+        type: boolean
+        x-examples: [true, false]
+        description: |
+          Route all CIDRs via local interface (for tunneling mode)

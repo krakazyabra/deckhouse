@@ -44,37 +44,8 @@ const (
 `
 	moduleValues = `
   internal:
-    webhookCert:
-      ca: |
-        -----BEGIN CERTIFICATE-----
-        MIIBbTCCARSgAwIBAgIUNY8AHPMngGERxYdy9OQvB/C5Z2swCgYIKoZIzj0EAwIw
-        FTETMBEGA1UEAxMKbGluc3Rvci1jYTAeFw0yMjAyMDgxOTQwMDBaFw0zMjAyMDYx
-        OTQwMDBaMBUxEzARBgNVBAMTCmxpbnN0b3ItY2EwWTATBgcqhkjOPQIBBggqhkjO
-        PQMBBwNCAAR/god/1bNYEJbbI4Ss3eDXxco6ztt/nTA71AcYUF0+8KaqqEgB1b4d
-        h6BeqkHFtGcDLdFu4DIVlTcrsVNgzcVwo0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYD
-        VR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUX/S16dEkvqDWVE3i07jOMYBxhtAwCgYI
-        KoZIzj0EAwIDRwAwRAIgcNKc5Bt0Fd5z4jFL3LXyaQtQeinjYZiMcqLMrGv+NNoC
-        IDJid8dT06cHhi8ltGgLZzXGw25qOu5oZSSJIRw6+QcZ
-        -----END CERTIFICATE-----
-      cert: |
-        -----BEGIN CERTIFICATE-----
-        MIIBsDCCAVWgAwIBAgIUR6gMYo0dyTWRiEKMnDYmAJeW7ZwwCgYIKoZIzj0EAwIw
-        FTETMBEGA1UEAxMKbGluc3Rvci1jYTAeFw0yMjAyMDgxOTQwMDBaFw0yMzAyMDgx
-        OTQwMDBaMBkxFzAVBgNVBAMTDmxpbnN0b3ItY2xpZW50MFkwEwYHKoZIzj0CAQYI
-        KoZIzj0DAQcDQgAEalDjr7NfrwdjoSh1qo5vfYccFjZQxMTEy+rVH+pSEIMgp+ef
-        Ipz24bDQZ/6qwZbpbiT1lywYVWDpWVxeFcV+FaN/MH0wDgYDVR0PAQH/BAQDAgWg
-        MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMBAf8EAjAAMB0G
-        A1UdDgQWBBRFObmL7G6CSOLmpI2Tog79nkyzEjAfBgNVHSMEGDAWgBRf9LXp0SS+
-        oNZUTeLTuM4xgHGG0DAKBggqhkjOPQQDAgNJADBGAiEAgZAQv6TBsg3PGji2u6MO
-        /V46YliV5HVbtEaZG1l/10sCIQCwQOC1/9+2mOOypS6lYywJAo/l+MlbZMWITySC
-        A8aK1g==
-        -----END CERTIFICATE-----
-      key: |
-        -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIPFImbnfYGVkjAoMJrT91lAzX122Z53AXh5bFwCnNVsfoAoGCCqGSM49
-        AwEHoUQDQgAEalDjr7NfrwdjoSh1qo5vfYccFjZQxMTEy+rVH+pSEIMgp+efIpz2
-        4bDQZ/6qwZbpbiT1lywYVWDpWVxeFcV+FQ==
-        -----END EC PRIVATE KEY-----`
+    routeLocal: true
+`
 )
 
 var _ = Describe("Module :: kubevirt :: helm template ::", func() {
