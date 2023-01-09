@@ -165,8 +165,8 @@ index c85f0373cb..f968ea4445 100644
  )
  
 +const (
-+	customPodIpAddr  = "cni.cilium.io/ipAddrs"
-+	customPodMacAddr = "cni.cilium.io/macAddrs"
++	customPodIpAddr  = "cni.cilium.io/ipAddress"
++	customPodMacAddr = "cni.cilium.io/macAddress"
 +)
 +
  // AllocationResult is the result of an allocation

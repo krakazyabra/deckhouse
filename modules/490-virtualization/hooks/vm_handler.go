@@ -220,8 +220,8 @@ func setVMFields(d8vm *v1alpha1.VirtualMachine, vm *virtv1.VirtualMachine, ipAdd
 	vm.Spec.Template = &virtv1.VirtualMachineInstanceTemplateSpec{
 		ObjectMeta: v1.ObjectMeta{
 			Annotations: map[string]string{
-				"cni.cilium.io/ipAddrs":  ipAddress,
-				"cni.cilium.io/macAddrs": "f6:e1:74:94:b8:1a",
+				"cni.cilium.io/ipAddress":  ipAddress,
+				"cni.cilium.io/macAddress": "f6:e1:74:94:b8:1a",
 			},
 		},
 		Spec: virtv1.VirtualMachineInstanceSpec{
